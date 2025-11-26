@@ -31,13 +31,39 @@ class SAM3Service:
         print(f"Initializing SAM 3 on device: {self.device}")
 
         try:
+            # Try to find local checkpoint first, then fall back to environment variable or HuggingFace
+            default_checkpoint_path = os.path.join(
+                os.path.dirname(__file__), '../../../checkpoints/sam3/sam3.pt'
+            )
+
+            if os.path.exists(default_checkpoint_path):
+                checkpoint_path = default_checkpoint_path
+                load_from_hf = False
+                print(f"Using local checkpoint: {checkpoint_path}")
+            else:
+                # Fall back to environment variable or HuggingFace
+                checkpoint_path = os.environ.get("SAM3_CHECKPOINT_PATH", None)
+                load_from_hf = checkpoint_path is None
+                if checkpoint_path:
+                    print(f"Using checkpoint from environment: {checkpoint_path}")
+                else:
+                    print("No local checkpoint found, will download from HuggingFace")
+
             # Initialize image model with explicit device
-            self.image_model = build_sam3_image_model(device=self.device)
+            self.image_model = build_sam3_image_model(
+                device=self.device,
+                checkpoint_path=checkpoint_path,
+                load_from_HF=load_from_hf
+            )
             self.image_model = self.image_model.to(self.device)
             self.image_processor = Sam3Processor(self.image_model)
 
-            # Initialize video predictor
-            self.video_predictor = build_sam3_video_predictor(device=self.device)
+            # Initialize video predictor (only takes checkpoint_path, uses CUDA by default)
+            # If load_from_hf is True, don't pass checkpoint_path and let it download from HF
+            video_checkpoint = checkpoint_path if not load_from_hf else None
+            self.video_predictor = build_sam3_video_predictor(
+                checkpoint_path=video_checkpoint
+            )
 
             # Store active sessions
             self.image_states = {}  # image_id -> inference_state
@@ -87,7 +113,14 @@ class SAM3Service:
         # Filter low confidence predictions
         filtered_indices = [i for i, score in enumerate(scores) if score >= confidence_threshold]
 
-        filtered_masks = [masks[i] for i in filtered_indices]
+        # Squeeze masks to remove extra dimensions (N, 1, H, W) -> list of (H, W)
+        # masks is a single tensor with shape (N, 1, H, W), we need to convert to list of 2D arrays
+        if len(filtered_indices) > 0:
+            filtered_masks_tensor = masks[filtered_indices]  # Shape: (num_filtered, 1, H, W)
+            filtered_masks = [filtered_masks_tensor[i].squeeze() for i in range(len(filtered_indices))]  # List of (H, W)
+        else:
+            filtered_masks = []
+
         filtered_boxes = [boxes[i] for i in filtered_indices]
         filtered_scores = [scores[i] for i in filtered_indices]
 
@@ -129,8 +162,15 @@ class SAM3Service:
             labels=np.array(labels)
         )
 
+        # Squeeze masks to remove extra dimensions (N, 1, H, W) -> list of (H, W)
+        masks_tensor = output["masks"]
+        if masks_tensor.shape[0] > 0:
+            masks = [masks_tensor[i].squeeze() for i in range(masks_tensor.shape[0])]
+        else:
+            masks = []
+
         return {
-            "masks": output["masks"],
+            "masks": masks,
             "boxes": output["boxes"],
             "scores": output["scores"]
         }
@@ -161,8 +201,15 @@ class SAM3Service:
             box=np.array(box)
         )
 
+        # Squeeze masks to remove extra dimensions (N, 1, H, W) -> list of (H, W)
+        masks_tensor = output["masks"]
+        if masks_tensor.shape[0] > 0:
+            masks = [masks_tensor[i].squeeze() for i in range(masks_tensor.shape[0])]
+        else:
+            masks = []
+
         return {
-            "masks": output["masks"],
+            "masks": masks,
             "boxes": output["boxes"],
             "scores": output["scores"]
         }
@@ -246,3 +293,4 @@ def get_sam3_service() -> SAM3Service:
     if _sam3_service is None:
         _sam3_service = SAM3Service()
     return _sam3_service
+

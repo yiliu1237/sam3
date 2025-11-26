@@ -2,6 +2,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
 from PIL import Image
 import io
+import numpy as np
 from typing import List
 
 import sys
@@ -71,9 +72,32 @@ async def segment_image_with_text(request: TextPromptRequest):
             confidence_threshold=request.confidence_threshold
         )
 
-        # Convert numpy arrays to lists for JSON serialization
+        # Convert tensors to lists for JSON serialization
+        # Convert masks to integers (0 or 1) - handle both numpy arrays and tensors
+        masks_converted = []
+        for mask in result["masks"]:
+            # Convert tensor to numpy if needed
+            if hasattr(mask, 'cpu'):
+                mask = mask.cpu().numpy()
+            elif not isinstance(mask, np.ndarray):
+                mask = np.array(mask)
+
+            # Ensure mask is 2D (height x width)
+            if mask.ndim != 2:
+                print(f"Warning: mask has unexpected dimensions: {mask.shape}")
+                # Try to reshape if possible
+                if mask.ndim == 1:
+                    # This shouldn't happen, but handle it
+                    size = int(np.sqrt(mask.shape[0]))
+                    if size * size == mask.shape[0]:
+                        mask = mask.reshape(size, size)
+
+            # Convert to int and then to list (keeping 2D structure)
+            mask_int = mask.astype(int).tolist()
+            masks_converted.append(mask_int)
+
         return {
-            "masks": [[row.tolist() for row in mask] for mask in result["masks"]],
+            "masks": masks_converted,
             "boxes": [[float(x) for x in box] for box in result["boxes"]],
             "scores": [float(score) for score in result["scores"]],
             "labels": [request.prompt] * len(result["scores"])
@@ -114,9 +138,26 @@ async def refine_segmentation(request: RefinePromptRequest):
         else:
             raise HTTPException(status_code=400, detail="Must provide points or boxes")
 
-        # Convert numpy arrays to lists
+        # Convert tensors to lists for JSON serialization
+        # Convert masks to integers (0 or 1) - handle both numpy arrays and tensors
+        masks_converted = []
+        for mask in result["masks"]:
+            # Convert tensor to numpy if needed
+            if hasattr(mask, 'cpu'):
+                mask = mask.cpu().numpy()
+            elif not isinstance(mask, np.ndarray):
+                mask = np.array(mask)
+
+            # Ensure mask is 2D (height x width)
+            if mask.ndim != 2:
+                print(f"Warning: mask has unexpected dimensions: {mask.shape}")
+
+            # Convert to int and then to list (keeping 2D structure)
+            mask_int = mask.astype(int).tolist()
+            masks_converted.append(mask_int)
+
         return {
-            "masks": [[row.tolist() for row in mask] for mask in result["masks"]],
+            "masks": masks_converted,
             "boxes": [[float(x) for x in box] for box in result["boxes"]],
             "scores": [float(score) for score in result["scores"]]
         }
@@ -169,3 +210,4 @@ async def clear_file_state(file_id: str, file_type: str = "image"):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Clear failed: {str(e)}")
+
