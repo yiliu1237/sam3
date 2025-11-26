@@ -178,8 +178,8 @@ const SegmentationCanvas = ({ imageUrl, masks, onPointClick, onBoxDraw }) => {
       // Generate unique color for this instance
       const baseColor = generateInstanceColor(idx, masks.length);
 
-      // Make masks very transparent - adjust opacity based on selection
-      const opacity = selectedMasks.includes(idx) ? 60 : 40;
+      // Make masks very transparent - opacity range is 0-255 (using very low values for high transparency)
+      const opacity = selectedMasks.includes(idx) ? 25 : 15;
       const color = [...baseColor, opacity];
 
       // Create colored overlay
