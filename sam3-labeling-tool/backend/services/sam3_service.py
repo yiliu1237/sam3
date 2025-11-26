@@ -31,13 +31,39 @@ class SAM3Service:
         print(f"Initializing SAM 3 on device: {self.device}")
 
         try:
+            # Try to find local checkpoint first, then fall back to environment variable or HuggingFace
+            default_checkpoint_path = os.path.join(
+                os.path.dirname(__file__), '../../../checkpoints/sam3/sam3.pt'
+            )
+
+            if os.path.exists(default_checkpoint_path):
+                checkpoint_path = default_checkpoint_path
+                load_from_hf = False
+                print(f"Using local checkpoint: {checkpoint_path}")
+            else:
+                # Fall back to environment variable or HuggingFace
+                checkpoint_path = os.environ.get("SAM3_CHECKPOINT_PATH", None)
+                load_from_hf = checkpoint_path is None
+                if checkpoint_path:
+                    print(f"Using checkpoint from environment: {checkpoint_path}")
+                else:
+                    print("No local checkpoint found, will download from HuggingFace")
+
             # Initialize image model with explicit device
-            self.image_model = build_sam3_image_model(device=self.device)
+            self.image_model = build_sam3_image_model(
+                device=self.device,
+                checkpoint_path=checkpoint_path,
+                load_from_HF=load_from_hf
+            )
             self.image_model = self.image_model.to(self.device)
             self.image_processor = Sam3Processor(self.image_model)
 
             # Initialize video predictor
-            self.video_predictor = build_sam3_video_predictor(device=self.device)
+            self.video_predictor = build_sam3_video_predictor(
+                device=self.device,
+                checkpoint_path=checkpoint_path,
+                load_from_HF=load_from_hf
+            )
 
             # Store active sessions
             self.image_states = {}  # image_id -> inference_state

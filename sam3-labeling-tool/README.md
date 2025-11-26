@@ -110,9 +110,11 @@ cd ../frontend
 npm install
 ```
 
-### 4. HuggingFace Authentication
+### 4. Model Setup (Choose ONE option)
 
-SAM 3 requires authentication to download model checkpoints:
+SAM 3 requires model checkpoints. Choose one of these options:
+
+#### Option A: HuggingFace (Recommended)
 
 ```bash
 # Install huggingface-cli if not already installed
@@ -123,6 +125,16 @@ huggingface-cli login
 ```
 
 Then request access to the SAM 3 model at: https://huggingface.co/facebook/sam3
+
+#### Option B: Local Checkpoint
+
+If you have a local checkpoint file, set the environment variable:
+
+```bash
+export SAM3_CHECKPOINT_PATH=/path/to/sam3.pt
+```
+
+Or add it to your shell startup file (~/.bashrc or ~/.zshrc)
 
 ## Running the Application
 
