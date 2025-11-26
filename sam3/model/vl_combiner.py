@@ -8,7 +8,15 @@ from typing import List, Optional
 import torch
 import torch.nn as nn
 
-from torch.nn.attention import sdpa_kernel, SDPBackend
+# Try to import torch.nn.attention (PyTorch 2.5+), fallback for older versions
+try:
+    from torch.nn.attention import sdpa_kernel, SDPBackend
+    HAS_SDPA_KERNEL = True
+except (ImportError, ModuleNotFoundError):
+    # Fallback for PyTorch < 2.5
+    sdpa_kernel = None
+    SDPBackend = None
+    HAS_SDPA_KERNEL = False
 
 from .act_ckpt_utils import activation_ckpt_wrapper
 from .necks import Sam3DualViTDetNeck
@@ -145,15 +153,21 @@ class SAM3VLBackbone(nn.Module):
             # They'll be used later for output alignment
             text_to_encode += additional_text
 
-        sdpa_context = sdpa_kernel(
-            [
-                SDPBackend.MATH,
-                SDPBackend.EFFICIENT_ATTENTION,
-                SDPBackend.FLASH_ATTENTION,
-            ]
-        )
-
-        with sdpa_context:
+        # Use sdpa_kernel context manager if available (PyTorch 2.5+)
+        if HAS_SDPA_KERNEL:
+            sdpa_context = sdpa_kernel(
+                [
+                    SDPBackend.MATH,
+                    SDPBackend.EFFICIENT_ATTENTION,
+                    SDPBackend.FLASH_ATTENTION,
+                ]
+            )
+            with sdpa_context:
+                text_attention_mask, text_memory, text_embeds = self.language_backbone(
+                    text_to_encode, input_boxes, device=device
+                )
+        else:
+            # Fallback for PyTorch < 2.5 - run without sdpa_kernel context
             text_attention_mask, text_memory, text_embeds = self.language_backbone(
                 text_to_encode, input_boxes, device=device
             )

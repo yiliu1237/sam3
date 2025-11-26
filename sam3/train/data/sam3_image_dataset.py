@@ -15,7 +15,16 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 import torch
 import torch.utils.data
 import torchvision
-from decord import cpu, VideoReader
+
+# Try to import decord for video support, fallback gracefully if unavailable
+try:
+    from decord import cpu, VideoReader
+    HAS_DECORD = True
+except (ImportError, ModuleNotFoundError):
+    VideoReader = None
+    cpu = None
+    HAS_DECORD = False
+
 from iopath.common.file_io import g_pathmgr
 
 from PIL import Image as PILImage
@@ -202,6 +211,11 @@ class CustomCocoDetectionAPI(VisionDataset):
             try:
                 if ".mp4" in path and path[-4:] == ".mp4":
                     # Going to load a video frame
+                    if not HAS_DECORD:
+                        raise ImportError(
+                            "decord is required for video support but is not installed. "
+                            "Video loading is not available on macOS. Please use image files only."
+                        )
                     video_path, frame = path.split("@")
                     video = VideoReader(video_path, ctx=cpu(0))
                     # Convert to PIL image

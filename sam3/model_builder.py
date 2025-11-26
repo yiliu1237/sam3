@@ -549,6 +549,14 @@ def _setup_device_and_mode(model, device, eval_mode):
     """Setup model device and evaluation mode."""
     if device == "cuda":
         model = model.cuda()
+    elif device == "mps":
+        model = model.to("mps")
+    elif device == "cpu":
+        model = model.to("cpu")
+    else:
+        # For any other device string
+        model = model.to(device)
+
     if eval_mode:
         model.eval()
     return model
