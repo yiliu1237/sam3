@@ -16,6 +16,66 @@ const SegmentationCanvas = ({ imageUrl, masks, onPointClick, onBoxDraw }) => {
     toggleMaskSelection,
   } = useStore();
 
+  // Generate unique colors for each instance
+  const generateInstanceColor = (index, total) => {
+    // Use HSL color space for better color distribution
+    const hue = (index * 360 / Math.max(total, 1)) % 360;
+    const saturation = 70 + (index % 3) * 10; // Vary saturation slightly
+    const lightness = 50 + (index % 2) * 10; // Vary lightness slightly
+
+    // Convert HSL to RGB
+    const h = hue / 360;
+    const s = saturation / 100;
+    const l = lightness / 100;
+
+    const hue2rgb = (p, q, t) => {
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1/6) return p + (q - p) * 6 * t;
+      if (t < 1/2) return q;
+      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+      return p;
+    };
+
+    let r, g, b;
+    if (s === 0) {
+      r = g = b = l;
+    } else {
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      const p = 2 * l - q;
+      r = hue2rgb(p, q, h + 1/3);
+      g = hue2rgb(p, q, h);
+      b = hue2rgb(p, q, h - 1/3);
+    }
+
+    return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+  };
+
+  // Extract boundary from mask
+  const extractBoundary = (mask) => {
+    const boundaries = [];
+    const height = mask.length;
+    const width = mask[0].length;
+
+    // Find edge pixels using 4-connectivity
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        if (mask[y][x]) {
+          // Check if this pixel is on the boundary
+          const isEdge =
+            x === 0 || x === width - 1 || y === 0 || y === height - 1 ||
+            !mask[y-1]?.[x] || !mask[y+1]?.[x] || !mask[y][x-1] || !mask[y][x+1];
+
+          if (isEdge) {
+            boundaries.push({ x, y });
+          }
+        }
+      }
+    }
+
+    return boundaries;
+  };
+
   // Load image
   useEffect(() => {
     if (!imageUrl) return;
@@ -107,17 +167,23 @@ const SegmentationCanvas = ({ imageUrl, masks, onPointClick, onBoxDraw }) => {
   const renderMasks = () => {
     if (!masks || !image) return null;
 
-    return masks.map((mask, idx) => {
+    const maskElements = [];
+
+    masks.forEach((mask, idx) => {
       const canvas = document.createElement('canvas');
       canvas.width = mask[0].length;
       canvas.height = mask.length;
       const ctx = canvas.getContext('2d');
 
+      // Generate unique color for this instance
+      const baseColor = generateInstanceColor(idx, masks.length);
+
+      // Make masks very transparent - adjust opacity based on selection
+      const opacity = selectedMasks.includes(idx) ? 60 : 40;
+      const color = [...baseColor, opacity];
+
       // Create colored overlay
       const imageData = ctx.createImageData(canvas.width, canvas.height);
-      const color = selectedMasks.includes(idx)
-        ? [14, 165, 233, 120] // Primary blue with transparency
-        : [59, 130, 246, 80];   // Lighter blue
 
       for (let y = 0; y < mask.length; y++) {
         for (let x = 0; x < mask[y].length; x++) {
@@ -136,16 +202,47 @@ const SegmentationCanvas = ({ imageUrl, masks, onPointClick, onBoxDraw }) => {
       const maskImg = new window.Image();
       maskImg.src = canvas.toDataURL();
 
-      return (
+      // Add the mask overlay
+      maskElements.push(
         <KonvaImage
-          key={idx}
+          key={`mask-${idx}`}
           image={maskImg}
           width={dimensions.width}
           height={dimensions.height}
           onClick={() => toggleMaskSelection(idx)}
         />
       );
+
+      // Add boundary visualization
+      const boundaries = extractBoundary(mask);
+      if (boundaries.length > 0) {
+        const scaleX = dimensions.width / mask[0].length;
+        const scaleY = dimensions.height / mask.length;
+
+        // Draw boundary points as a continuous line
+        const boundaryPoints = boundaries.flatMap(b => [
+          b.x * scaleX,
+          b.y * scaleY
+        ]);
+
+        // Use bright, fully opaque colors for boundaries
+        const brightColor = baseColor.map(c => Math.min(255, Math.round(c * 1.2)));
+
+        maskElements.push(
+          <Line
+            key={`boundary-${idx}`}
+            points={boundaryPoints}
+            stroke={`rgb(${brightColor[0]}, ${brightColor[1]}, ${brightColor[2]})`}
+            strokeWidth={3}
+            opacity={1.0}
+            lineCap="round"
+            lineJoin="round"
+          />
+        );
+      }
     });
+
+    return maskElements;
   };
 
   // Render refinement points
