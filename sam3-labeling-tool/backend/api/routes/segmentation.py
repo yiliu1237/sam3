@@ -1,9 +1,10 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
-from PIL import Image
+from PIL import Image, ImageDraw
 import io
 import numpy as np
 from typing import List
+from pathlib import Path
 
 import sys
 import os
@@ -210,4 +211,121 @@ async def clear_file_state(file_id: str, file_type: str = "image"):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Clear failed: {str(e)}")
+
+
+@router.post("/save_masks")
+async def save_masks(request: dict):
+    """
+    Save instance segmentation masks in multiple formats
+
+    Expected request format:
+    {
+        "image_id": "xxx",
+        "output_path": "/path/to/save/folder",
+        "masks": [[mask1], [mask2], ...],  # 2D arrays
+        "scores": [0.9, 0.8, ...],
+        "boxes": [[x1,y1,x2,y2], ...]
+    }
+
+    Saves:
+    1. overlay_visualization.png - Colored overlay on original image
+    2. instances.png - Instance ID map (0=bg, 1=inst0, 2=inst1, ...)
+    3. combined_mask.png - All instances merged into binary mask
+    4. masks/mask_XX.png - Individual binary masks
+    """
+    try:
+        storage = get_storage_service()
+
+        # Extract request data
+        image_id = request.get("image_id")
+        output_path = request.get("output_path")
+        masks = request.get("masks", [])
+        scores = request.get("scores", [])
+        boxes = request.get("boxes", [])
+
+        if not image_id or not output_path or not masks:
+            raise HTTPException(status_code=400, detail="Missing required fields")
+
+        # Get original image
+        image_path = storage.get_upload_path(image_id)
+        if not image_path:
+            raise HTTPException(status_code=404, detail=f"Image {image_id} not found")
+
+        original_image = Image.open(image_path).convert('RGB')
+        width, height = original_image.size
+
+        # Create output directory
+        output_dir = Path(output_path)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        masks_dir = output_dir / "masks"
+        masks_dir.mkdir(exist_ok=True)
+
+        # Convert masks to numpy arrays
+        masks_np = []
+        for mask in masks:
+            mask_array = np.array(mask, dtype=np.uint8)
+            # Resize mask to match original image size if needed
+            if mask_array.shape != (height, width):
+                mask_pil = Image.fromarray(mask_array * 255)
+                mask_pil = mask_pil.resize((width, height), Image.NEAREST)
+                mask_array = (np.array(mask_pil) > 128).astype(np.uint8)
+            masks_np.append(mask_array)
+
+        # 1. Create overlay visualization (colored masks on original image)
+        overlay = original_image.copy().convert('RGBA')
+        overlay_layer = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(overlay_layer)
+
+        for idx, mask in enumerate(masks_np):
+            # Generate unique color for this instance (same as frontend)
+            hue = (idx * 360 / max(len(masks_np), 1)) % 360
+            saturation = 70 + (idx % 3) * 10
+            lightness = 50 + (idx % 2) * 10
+
+            # Convert HSL to RGB
+            from colorsys import hls_to_rgb
+            r, g, b = hls_to_rgb(hue/360, lightness/100, saturation/100)
+            color = (int(r*255), int(g*255), int(b*255), 76)  # 30% opacity
+
+            # Create colored mask
+            colored_mask = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+            colored_mask_array = np.array(colored_mask)
+            colored_mask_array[mask > 0] = color
+            colored_mask = Image.fromarray(colored_mask_array)
+
+            overlay_layer = Image.alpha_composite(overlay_layer, colored_mask)
+
+        overlay = Image.alpha_composite(overlay, overlay_layer)
+        overlay.convert('RGB').save(output_dir / "overlay_visualization.png")
+
+        # 2. Create instances map (pixel value = instance ID)
+        instances_map = np.zeros((height, width), dtype=np.uint8)
+        for idx, mask in enumerate(masks_np):
+            instances_map[mask > 0] = idx + 1  # 0=background, 1=inst0, 2=inst1, ...
+        Image.fromarray(instances_map).save(output_dir / "instances.png")
+
+        # 3. Create combined binary mask (all instances merged)
+        combined_mask = np.zeros((height, width), dtype=np.uint8)
+        for mask in masks_np:
+            combined_mask = np.maximum(combined_mask, mask)
+        Image.fromarray(combined_mask * 255).save(output_dir / "combined_mask.png")
+
+        # 4. Save individual binary masks
+        for idx, mask in enumerate(masks_np):
+            mask_filename = f"mask_{idx:02d}.png"
+            Image.fromarray(mask * 255).save(masks_dir / mask_filename)
+
+        return {
+            "message": "Masks saved successfully",
+            "output_path": str(output_dir),
+            "files_created": {
+                "overlay_visualization": str(output_dir / "overlay_visualization.png"),
+                "instances_map": str(output_dir / "instances.png"),
+                "combined_mask": str(output_dir / "combined_mask.png"),
+                "individual_masks": len(masks_np)
+            }
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Save failed: {str(e)}")
 

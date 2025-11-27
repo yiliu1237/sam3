@@ -10,6 +10,7 @@ import {
   refineWithPoints,
   refineWithBox,
   exportAnnotations,
+  saveMasksToFolder,
 } from '../api/client';
 
 const SingleMode = () => {
@@ -118,6 +119,42 @@ const SingleMode = () => {
     }
   };
 
+  // Handle save masks
+  const handleSave = async () => {
+    if (!currentFileId || !segmentationResult) {
+      addToast('No segmentation results to save', 'error');
+      return;
+    }
+
+    // Prompt user for output path
+    const outputPath = prompt('Enter the folder path to save masks:\n(e.g., /Users/username/Desktop/output or C:\\Users\\username\\Desktop\\output)');
+
+    if (!outputPath || outputPath.trim() === '') {
+      addToast('Save cancelled', 'info');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+
+      const result = await saveMasksToFolder(
+        currentFileId,
+        outputPath.trim(),
+        segmentationResult.masks,
+        segmentationResult.scores,
+        segmentationResult.boxes
+      );
+
+      addToast(`Masks saved successfully to ${result.output_path}`, 'success');
+      console.log('Files created:', result.files_created);
+    } catch (error) {
+      console.error('Save error:', error);
+      addToast(`Save failed: ${error.response?.data?.detail || error.message}`, 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Handle export
   const handleExport = async () => {
     try {
@@ -210,6 +247,7 @@ const SingleMode = () => {
         <div>
           <ToolPanel
             onClearPoints={clearRefinementPoints}
+            onSave={handleSave}
             onExport={handleExport}
           />
         </div>

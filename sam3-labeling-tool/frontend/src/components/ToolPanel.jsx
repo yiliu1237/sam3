@@ -1,8 +1,8 @@
 import React from 'react';
-import { MousePointer, CircleDot, Square, Trash2, Download } from 'lucide-react';
+import { MousePointer, CircleDot, Square, Trash2, Download, Save } from 'lucide-react';
 import useStore from '../store/useStore';
 
-const ToolPanel = ({ onClearPoints, onExport }) => {
+const ToolPanel = ({ onClearPoints, onExport, onSave }) => {
   const {
     activeTool,
     setActiveTool,
@@ -77,13 +77,22 @@ const ToolPanel = ({ onClearPoints, onExport }) => {
         )}
 
         {segmentationResult && (
-          <button
-            onClick={onExport}
-            className="w-full flex items-center justify-center space-x-2 btn-primary"
-          >
-            <Download size={18} />
-            <span>Export Results</span>
-          </button>
+          <>
+            <button
+              onClick={onSave}
+              className="w-full flex items-center justify-center space-x-2 btn-primary"
+            >
+              <Save size={18} />
+              <span>Save Masks</span>
+            </button>
+            <button
+              onClick={onExport}
+              className="w-full flex items-center justify-center space-x-2 btn-secondary"
+            >
+              <Download size={18} />
+              <span>Export Results</span>
+            </button>
+          </>
         )}
       </div>
 

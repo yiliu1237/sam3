@@ -107,4 +107,17 @@ export const exportAnnotations = async (imageId, format = 'coco', includeVisuali
   return response.data;
 };
 
+// Save masks to folder
+export const saveMasksToFolder = async (imageId, outputPath, masks, scores = [], boxes = []) => {
+  const response = await apiClient.post('/api/segment/save_masks', {
+    image_id: imageId,
+    output_path: outputPath,
+    masks,
+    scores,
+    boxes,
+  });
+
+  return response.data;
+};
+
 export default apiClient;
