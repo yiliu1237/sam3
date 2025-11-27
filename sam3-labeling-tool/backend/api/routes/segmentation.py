@@ -279,10 +279,9 @@ async def save_masks(request: dict):
                 mask_array = (np.array(mask_pil) > 128).astype(np.uint8)
             masks_np.append(mask_array)
 
-        # 1. Create overlay visualization (colored masks on original image)
+        # 1. Create overlay visualization with boundaries (colored masks on original image)
         overlay = original_image.copy().convert('RGBA')
         overlay_layer = Image.new('RGBA', (width, height), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(overlay_layer)
 
         for idx, mask in enumerate(masks_np):
             # Generate unique color for this instance (same as frontend)
@@ -293,14 +292,33 @@ async def save_masks(request: dict):
             # Convert HSL to RGB
             from colorsys import hls_to_rgb
             r, g, b = hls_to_rgb(hue/360, lightness/100, saturation/100)
-            color = (int(r*255), int(g*255), int(b*255), 76)  # 30% opacity
+            fill_color = (int(r*255), int(g*255), int(b*255), 76)  # 30% opacity for fill
+            border_color = (int(r*255), int(g*255), int(b*255), 255)  # Full opacity for border
 
-            # Create colored mask
+            # Create colored mask (transparent fill)
             colored_mask = Image.new('RGBA', (width, height), (0, 0, 0, 0))
             colored_mask_array = np.array(colored_mask)
-            colored_mask_array[mask > 0] = color
-            colored_mask = Image.fromarray(colored_mask_array)
+            colored_mask_array[mask > 0] = fill_color
 
+            # Detect edges (4-connectivity)
+            mask_h, mask_w = mask.shape
+            edges = np.zeros_like(mask, dtype=bool)
+            for y in range(mask_h):
+                for x in range(mask_w):
+                    if mask[y, x] > 0:
+                        # Check 4-connected neighbors
+                        is_edge = False
+                        if x == 0 or x == mask_w - 1 or y == 0 or y == mask_h - 1:
+                            is_edge = True
+                        elif (mask[y-1, x] == 0 or mask[y+1, x] == 0 or
+                              mask[y, x-1] == 0 or mask[y, x+1] == 0):
+                            is_edge = True
+                        if is_edge:
+                            edges[y, x] = True
+
+            # Draw bright colored borders
+            colored_mask_array[edges] = border_color
+            colored_mask = Image.fromarray(colored_mask_array)
             overlay_layer = Image.alpha_composite(overlay_layer, colored_mask)
 
         overlay = Image.alpha_composite(overlay, overlay_layer)
@@ -383,7 +401,7 @@ async def download_masks(request: dict):
                     mask_array = (np.array(mask_pil) > 128).astype(np.uint8)
                 masks_np.append(mask_array)
 
-            # 1. Create overlay visualization
+            # 1. Create overlay visualization with boundaries
             overlay = original_image.copy().convert('RGBA')
             overlay_layer = Image.new('RGBA', (width, height), (0, 0, 0, 0))
 
@@ -394,11 +412,32 @@ async def download_masks(request: dict):
 
                 from colorsys import hls_to_rgb
                 r, g, b = hls_to_rgb(hue/360, lightness/100, saturation/100)
-                color = (int(r*255), int(g*255), int(b*255), 76)
+                fill_color = (int(r*255), int(g*255), int(b*255), 76)  # 30% opacity for fill
+                border_color = (int(r*255), int(g*255), int(b*255), 255)  # Full opacity for border
 
+                # Create colored mask (transparent fill)
                 colored_mask = Image.new('RGBA', (width, height), (0, 0, 0, 0))
                 colored_mask_array = np.array(colored_mask)
-                colored_mask_array[mask > 0] = color
+                colored_mask_array[mask > 0] = fill_color
+
+                # Detect edges (4-connectivity)
+                mask_h, mask_w = mask.shape
+                edges = np.zeros_like(mask, dtype=bool)
+                for y in range(mask_h):
+                    for x in range(mask_w):
+                        if mask[y, x] > 0:
+                            # Check 4-connected neighbors
+                            is_edge = False
+                            if x == 0 or x == mask_w - 1 or y == 0 or y == mask_h - 1:
+                                is_edge = True
+                            elif (mask[y-1, x] == 0 or mask[y+1, x] == 0 or
+                                  mask[y, x-1] == 0 or mask[y, x+1] == 0):
+                                is_edge = True
+                            if is_edge:
+                                edges[y, x] = True
+
+                # Draw bright colored borders
+                colored_mask_array[edges] = border_color
                 colored_mask = Image.fromarray(colored_mask_array)
                 overlay_layer = Image.alpha_composite(overlay_layer, colored_mask)
 
