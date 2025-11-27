@@ -7,6 +7,7 @@ import useStore from '../store/useStore';
 import {
   uploadFile,
   segmentImageWithText,
+  segmentVideoWithText,
   refineWithPoints,
   refineWithBox,
   exportAnnotations,
@@ -18,6 +19,7 @@ const SingleMode = () => {
 
   const {
     currentFileId,
+    currentFileType,
     setCurrentFile,
     clearCurrentFile,
     textPrompt,
@@ -59,21 +61,34 @@ const SingleMode = () => {
   // Handle text segmentation
   const handleSegment = async () => {
     if (!currentFileId || !textPrompt.trim()) {
-      addToast('Please upload an image and enter a prompt', 'error');
+      addToast('Please upload a file and enter a prompt', 'error');
       return;
     }
 
     try {
       setIsLoading(true);
 
-      const result = await segmentImageWithText(
-        currentFileId,
-        textPrompt,
-        confidenceThreshold
-      );
+      let result;
+      if (currentFileType === 'video') {
+        // Use video segmentation API
+        result = await segmentVideoWithText(
+          currentFileId,
+          textPrompt,
+          0, // frame_index
+          confidenceThreshold
+        );
+        addToast('Video segmentation initiated', 'success');
+      } else {
+        // Use image segmentation API
+        result = await segmentImageWithText(
+          currentFileId,
+          textPrompt,
+          confidenceThreshold
+        );
+        addToast(`Found ${result.masks?.length || 0} instances`, 'success');
+      }
 
       setSegmentationResult(result);
-      addToast(`Found ${result.masks.length} instances`, 'success');
     } catch (error) {
       console.error('Segmentation error:', error);
       addToast('Segmentation failed', 'error');
