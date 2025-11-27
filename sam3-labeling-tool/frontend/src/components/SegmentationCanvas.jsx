@@ -167,44 +167,7 @@ const SegmentationCanvas = ({ imageUrl, masks, onPointClick, onBoxDraw }) => {
     setBoxStart(null);
   };
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
   // Render mask overlay with single transparent color
-=======
-=======
->>>>>>> Stashed changes
-  // Generate distinct colors for each instance
-  const getInstanceColor = (idx, total) => {
-    // Use HSL color space to generate distinct colors
-    const hue = (idx * 360 / Math.max(total, 1)) % 360;
-    const saturation = 70 + (idx % 3) * 10; // 70-90%
-    const lightness = 50 + (idx % 2) * 10;  // 50-60%
-
-    // Convert HSL to RGB
-    const h = hue / 360;
-    const s = saturation / 100;
-    const l = lightness / 100;
-
-    const hue2rgb = (p, q, t) => {
-      if (t < 0) t += 1;
-      if (t > 1) t -= 1;
-      if (t < 1/6) return p + (q - p) * 6 * t;
-      if (t < 1/2) return q;
-      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-      return p;
-    };
-
-    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-    const p = 2 * l - q;
-    const r = Math.round(hue2rgb(p, q, h + 1/3) * 255);
-    const g = Math.round(hue2rgb(p, q, h) * 255);
-    const b = Math.round(hue2rgb(p, q, h - 1/3) * 255);
-
-    return [r, g, b];
-  };
-
-  // Render mask overlay
->>>>>>> Stashed changes
   const renderMasks = () => {
     if (!masks || !image) return null;
 
@@ -213,108 +176,20 @@ const SegmentationCanvas = ({ imageUrl, masks, onPointClick, onBoxDraw }) => {
     console.log('📐 Display dimensions:', dimensions.width, 'x', dimensions.height);
     console.log('📐 Mask dimensions:', masks[0]?.[0]?.length || 0, 'x', masks[0]?.length || 0);
 
-<<<<<<< Updated upstream
     const maskElements = [];
     const scaleX = dimensions.width / (masks[0]?.[0]?.length || 1);
     const scaleY = dimensions.height / (masks[0]?.length || 1);
 
     console.log('🔍 Scale factors - scaleX:', scaleX.toFixed(3), 'scaleY:', scaleY.toFixed(3));
-=======
-      // Get instance-specific color
-      const [r, g, b] = getInstanceColor(idx, masks.length);
-      const alpha = selectedMasks.includes(idx) ? 150 : 100; // Higher opacity for selected
-
-      // Get instance-specific color
-      const [r, g, b] = getInstanceColor(idx, masks.length);
-      const alpha = selectedMasks.includes(idx) ? 150 : 100; // Higher opacity for selected
-
-      // Create colored overlay
-      const imageData = ctx.createImageData(canvas.width, canvas.height);
-
-      for (let y = 0; y < mask.length; y++) {
-        for (let x = 0; x < mask[y].length; x++) {
-          if (mask[y][x]) {
-            const i = (y * mask[y].length + x) * 4;
-            imageData.data[i] = r;
-            imageData.data[i + 1] = g;
-            imageData.data[i + 2] = b;
-            imageData.data[i + 3] = alpha;
-<<<<<<< Updated upstream
-          }
-        }
-      }
->>>>>>> Stashed changes
 
     masks.forEach((mask, idx) => {
       const isSelected = selectedMaskId === idx;
 
-<<<<<<< Updated upstream
       // Generate unique color for this instance
       const baseColor = generateInstanceColor(idx, masks.length);
       // Higher opacity for selected mask (0.7), lower for unselected (0.3)
       const opacity = isSelected ? 0.7 : 0.3;
       const fillColor = `rgba(${baseColor[0]}, ${baseColor[1]}, ${baseColor[2]}, ${opacity})`;
-=======
-      // Draw boundary outline
-      ctx.strokeStyle = selectedMasks.includes(idx)
-        ? `rgba(255, 255, 255, 0.9)` // White outline for selected
-        : `rgba(${r}, ${g}, ${b}, 0.9)`; // Same color but opaque for unselected
-      ctx.lineWidth = 2;
-
-      // Find and draw boundaries
-      for (let y = 0; y < mask.length; y++) {
-        for (let x = 0; x < mask[y].length; x++) {
-          if (mask[y][x]) {
-            // Check if this pixel is on the boundary
-            const isBoundary =
-              (x === 0 || !mask[y][x - 1]) ||
-              (x === mask[y].length - 1 || !mask[y][x + 1]) ||
-              (y === 0 || !mask[y - 1][x]) ||
-              (y === mask.length - 1 || !mask[y + 1][x]);
-
-            if (isBoundary) {
-              ctx.fillStyle = ctx.strokeStyle;
-              ctx.fillRect(x, y, 1, 1);
-            }
-=======
->>>>>>> Stashed changes
-          }
-        }
-      }
-
-<<<<<<< Updated upstream
-=======
-      ctx.putImageData(imageData, 0, 0);
-
-      // Draw boundary outline
-      ctx.strokeStyle = selectedMasks.includes(idx)
-        ? `rgba(255, 255, 255, 0.9)` // White outline for selected
-        : `rgba(${r}, ${g}, ${b}, 0.9)`; // Same color but opaque for unselected
-      ctx.lineWidth = 2;
-
-      // Find and draw boundaries
-      for (let y = 0; y < mask.length; y++) {
-        for (let x = 0; x < mask[y].length; x++) {
-          if (mask[y][x]) {
-            // Check if this pixel is on the boundary
-            const isBoundary =
-              (x === 0 || !mask[y][x - 1]) ||
-              (x === mask[y].length - 1 || !mask[y][x + 1]) ||
-              (y === 0 || !mask[y - 1][x]) ||
-              (y === mask.length - 1 || !mask[y + 1][x]);
-
-            if (isBoundary) {
-              ctx.fillStyle = ctx.strokeStyle;
-              ctx.fillRect(x, y, 1, 1);
-            }
-          }
-        }
-      }
-
->>>>>>> Stashed changes
-      const maskImg = new window.Image();
-      maskImg.src = canvas.toDataURL();
->>>>>>> Stashed changes
 
       // Bright border color (increase brightness by 20%)
       const brightColor = baseColor.map(c => Math.min(255, Math.round(c * 1.2)));

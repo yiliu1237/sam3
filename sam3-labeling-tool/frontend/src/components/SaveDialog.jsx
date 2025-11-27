@@ -4,8 +4,34 @@ import { X, FolderOpen } from 'lucide-react';
 const SaveDialog = ({ isOpen, onClose, onSave }) => {
   const [basePath, setBasePath] = useState('');
   const [subfolder, setSubfolder] = useState('');
+  const [directoryHandle, setDirectoryHandle] = useState(null);
 
   if (!isOpen) return null;
+
+  // Handle folder picker click - show instructions
+  const handleBrowseFolder = () => {
+    const instructions = `How to find your folder path:
+
+macOS:
+1. Open Finder
+2. Navigate to your desired folder
+3. Right-click the folder → "Get Info"
+4. Copy the path shown after "Where:"
+
+Windows:
+1. Open File Explorer
+2. Navigate to your desired folder
+3. Click the address bar at the top
+4. Copy the full path (e.g., C:\\Users\\username\\Desktop)
+
+Linux:
+1. Open your file manager
+2. Navigate to your desired folder
+3. Right-click → Properties
+4. Copy the "Location" or "Path"`;
+
+    alert(instructions);
+  };
 
   const handleSave = () => {
     if (!basePath.trim()) {
@@ -59,15 +85,22 @@ const SaveDialog = ({ isOpen, onClose, onSave }) => {
                 value={basePath}
                 onChange={(e) => setBasePath(e.target.value)}
                 placeholder="/Users/username/Desktop or C:\Users\username\Desktop"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               />
-              <FolderOpen
-                className="absolute right-3 top-2.5 text-gray-400"
-                size={20}
-              />
+              <button
+                type="button"
+                onClick={handleBrowseFolder}
+                className="absolute right-2 top-2 p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded transition-colors"
+                title="How to find folder path"
+              >
+                <FolderOpen
+                  className="text-gray-400 hover:text-primary-500"
+                  size={20}
+                />
+              </button>
             </div>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Enter the full path to the base folder
+              Click the folder icon for help finding the path
             </p>
           </div>
 
