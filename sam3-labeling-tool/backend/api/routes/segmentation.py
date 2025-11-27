@@ -1,10 +1,12 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from PIL import Image, ImageDraw
 import io
 import numpy as np
 from typing import List
 from pathlib import Path
+import zipfile
+import tempfile
 
 import sys
 import os
@@ -243,6 +245,12 @@ async def save_masks(request: dict):
         scores = request.get("scores", [])
         boxes = request.get("boxes", [])
 
+        print(f"🔍 Backend received save request:")
+        print(f"   image_id: {image_id}")
+        print(f"   output_path: {output_path}")
+        print(f"   output_path type: {type(output_path)}")
+        print(f"   masks count: {len(masks)}")
+
         if not image_id or not output_path or not masks:
             raise HTTPException(status_code=400, detail="Missing required fields")
 
@@ -328,4 +336,116 @@ async def save_masks(request: dict):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Save failed: {str(e)}")
+
+
+@router.post("/download_masks")
+async def download_masks(request: dict):
+    """
+    Download instance segmentation masks as a ZIP file
+
+    Returns a ZIP containing:
+    - overlay_visualization.png
+    - instances.png
+    - combined_mask.png
+    - masks/mask_XX.png (individual masks)
+    """
+    try:
+        storage = get_storage_service()
+
+        # Extract request data
+        image_id = request.get("image_id")
+        masks = request.get("masks", [])
+        scores = request.get("scores", [])
+        boxes = request.get("boxes", [])
+
+        if not image_id or not masks:
+            raise HTTPException(status_code=400, detail="Missing required fields")
+
+        # Get original image
+        image_path = storage.get_upload_path(image_id)
+        if not image_path:
+            raise HTTPException(status_code=404, detail=f"Image {image_id} not found")
+
+        original_image = Image.open(image_path).convert('RGB')
+        width, height = original_image.size
+
+        # Create ZIP file in memory
+        zip_buffer = io.BytesIO()
+
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            # Convert masks to numpy arrays
+            masks_np = []
+            for mask in masks:
+                mask_array = np.array(mask, dtype=np.uint8)
+                if mask_array.shape != (height, width):
+                    mask_pil = Image.fromarray(mask_array * 255)
+                    mask_pil = mask_pil.resize((width, height), Image.NEAREST)
+                    mask_array = (np.array(mask_pil) > 128).astype(np.uint8)
+                masks_np.append(mask_array)
+
+            # 1. Create overlay visualization
+            overlay = original_image.copy().convert('RGBA')
+            overlay_layer = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+
+            for idx, mask in enumerate(masks_np):
+                hue = (idx * 360 / max(len(masks_np), 1)) % 360
+                saturation = 70 + (idx % 3) * 10
+                lightness = 50 + (idx % 2) * 10
+
+                from colorsys import hls_to_rgb
+                r, g, b = hls_to_rgb(hue/360, lightness/100, saturation/100)
+                color = (int(r*255), int(g*255), int(b*255), 76)
+
+                colored_mask = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+                colored_mask_array = np.array(colored_mask)
+                colored_mask_array[mask > 0] = color
+                colored_mask = Image.fromarray(colored_mask_array)
+                overlay_layer = Image.alpha_composite(overlay_layer, colored_mask)
+
+            overlay = Image.alpha_composite(overlay, overlay_layer)
+
+            # Save to ZIP
+            overlay_bytes = io.BytesIO()
+            overlay.convert('RGB').save(overlay_bytes, format='PNG')
+            zip_file.writestr('overlay_visualization.png', overlay_bytes.getvalue())
+
+            # 2. Create instances map
+            instances_map = np.zeros((height, width), dtype=np.uint8)
+            for idx, mask in enumerate(masks_np):
+                instances_map[mask > 0] = idx + 1
+
+            instances_bytes = io.BytesIO()
+            Image.fromarray(instances_map).save(instances_bytes, format='PNG')
+            zip_file.writestr('instances.png', instances_bytes.getvalue())
+
+            # 3. Create combined binary mask
+            combined_mask = np.zeros((height, width), dtype=np.uint8)
+            for mask in masks_np:
+                combined_mask = np.maximum(combined_mask, mask)
+
+            combined_bytes = io.BytesIO()
+            Image.fromarray(combined_mask * 255).save(combined_bytes, format='PNG')
+            zip_file.writestr('combined_mask.png', combined_bytes.getvalue())
+
+            # 4. Save individual binary masks
+            for idx, mask in enumerate(masks_np):
+                mask_filename = f"masks/mask_{idx:02d}.png"
+                mask_bytes = io.BytesIO()
+                Image.fromarray(mask * 255).save(mask_bytes, format='PNG')
+                zip_file.writestr(mask_filename, mask_bytes.getvalue())
+
+        # Reset buffer position
+        zip_buffer.seek(0)
+
+        # Return ZIP file as download
+        return StreamingResponse(
+            zip_buffer,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f"attachment; filename=segmentation_masks.zip"
+            }
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")
 

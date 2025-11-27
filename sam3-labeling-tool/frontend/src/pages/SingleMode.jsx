@@ -3,7 +3,6 @@ import { Sparkles, Loader2 } from 'lucide-react';
 import ImageUploader from '../components/ImageUploader';
 import SegmentationCanvas from '../components/SegmentationCanvas';
 import ToolPanel from '../components/ToolPanel';
-import SaveDialog from '../components/SaveDialog';
 import useStore from '../store/useStore';
 import {
   uploadFile,
@@ -11,12 +10,11 @@ import {
   refineWithPoints,
   refineWithBox,
   exportAnnotations,
-  saveMasksToFolder,
+  downloadMasksAsZip,
 } from '../api/client';
 
 const SingleMode = () => {
   const [imagePreview, setImagePreview] = useState(null);
-  const [showSaveDialog, setShowSaveDialog] = useState(false);
 
   const {
     currentFileId,
@@ -121,34 +119,38 @@ const SingleMode = () => {
     }
   };
 
-  // Handle save masks - open dialog
-  const handleSave = () => {
+  // Handle save masks - download as ZIP
+  const handleSave = async () => {
     if (!currentFileId || !segmentationResult) {
       addToast('No segmentation results to save', 'error');
       return;
     }
-    setShowSaveDialog(true);
-  };
 
-  // Handle save with path from dialog
-  const handleSaveWithPath = async (outputPath) => {
     try {
       setIsLoading(true);
+      addToast('Preparing download...', 'info');
 
-      const result = await saveMasksToFolder(
+      const blob = await downloadMasksAsZip(
         currentFileId,
-        outputPath,
         segmentationResult.masks,
         segmentationResult.scores,
         segmentationResult.boxes
       );
 
-      addToast(`Masks saved successfully!`, 'success');
-      console.log('Files created:', result.files_created);
-      console.log('Output path:', result.output_path);
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'segmentation_masks.zip';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      addToast('Download started!', 'success');
     } catch (error) {
-      console.error('Save error:', error);
-      addToast(`Save failed: ${error.response?.data?.detail || error.message}`, 'error');
+      console.error('Download error:', error);
+      addToast(`Download failed: ${error.message}`, 'error');
     } finally {
       setIsLoading(false);
     }
@@ -175,13 +177,6 @@ const SingleMode = () => {
 
   return (
     <div className="max-w-7xl mx-auto">
-      {/* Save Dialog */}
-      <SaveDialog
-        isOpen={showSaveDialog}
-        onClose={() => setShowSaveDialog(false)}
-        onSave={handleSaveWithPath}
-      />
-
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
           Single Image/Video Segmentation
@@ -205,7 +200,7 @@ const SingleMode = () => {
                     type="text"
                     value={textPrompt}
                     onChange={(e) => setTextPrompt(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSegment()}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSegment()}
                     placeholder="Enter text prompt (e.g., 'crack', 'person', 'car')..."
                     className="input flex-1"
                     disabled={isLoading}

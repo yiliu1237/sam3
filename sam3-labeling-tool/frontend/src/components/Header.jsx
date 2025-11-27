@@ -21,8 +21,8 @@ const Header = () => {
             <h1 className="text-xl font-bold text-gray-900 dark:text-white">
               SAM 3 Labeling Tool
             </h1>
-            <span className="px-2 py-1 text-xs font-mono bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 rounded border border-yellow-300 dark:border-yellow-700">
-              v6.2-HELP
+            <span className="px-2 py-1 text-xs font-mono bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded border border-green-300 dark:border-green-700">
+              v7.0-ZIP
             </span>
           </div>
 
