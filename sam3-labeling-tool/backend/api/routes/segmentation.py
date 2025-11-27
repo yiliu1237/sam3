@@ -213,47 +213,53 @@ async def segment_video_with_text(request: VideoSegmentRequest):
             confidence_threshold=request.confidence_threshold
         )
 
-        # Debug: print the structure of result
-        print(f"DEBUG: Video segmentation result keys: {result.keys()}")
-        print(f"DEBUG: session_id: {result.get('session_id')}")
-        print(f"DEBUG: outputs type: {type(result.get('outputs'))}")
-
-        outputs = result.get('outputs')
-        if outputs is not None:
-            if isinstance(outputs, dict):
-                print(f"DEBUG: outputs is dict with keys: {outputs.keys()}")
-                for key, value in outputs.items():
-                    if isinstance(value, (torch.Tensor, np.ndarray)):
-                        print(f"DEBUG: outputs['{key}'] = type: {type(value)}, shape: {value.shape}")
-                    else:
-                        print(f"DEBUG: outputs['{key}'] = type: {type(value)}")
-
-        # Convert outputs to JSON-serializable format recursively
-        def make_serializable(obj):
-            """Recursively convert objects to JSON-serializable format"""
-            if isinstance(obj, torch.Tensor):
-                return obj.cpu().numpy().tolist()
-            elif isinstance(obj, np.ndarray):
-                return obj.tolist()
-            elif isinstance(obj, dict):
-                return {key: make_serializable(value) for key, value in obj.items()}
-            elif isinstance(obj, list):
-                return [make_serializable(item) for item in obj]
-            elif isinstance(obj, (np.integer, np.floating)):
-                return obj.item()
-            else:
-                return obj
-
+        # Parse video segmentation outputs
+        outputs = result.get('outputs', {})
         session_id = result.get('session_id')
         prompt = result.get('prompt', '')
 
-        # Convert outputs recursively
-        serializable_outputs = make_serializable(outputs) if outputs is not None else None
+        # Extract masks and convert to same format as image segmentation
+        # Video output structure: out_binary_masks, out_boxes_xywh, out_probs, out_obj_ids
+        out_masks = outputs.get('out_binary_masks')  # Shape: (num_objects, H, W)
+        out_boxes = outputs.get('out_boxes_xywh')    # Shape: (num_objects, 4) in xywh format
+        out_probs = outputs.get('out_probs')         # Shape: (num_objects,)
+        out_obj_ids = outputs.get('out_obj_ids')     # Shape: (num_objects,)
 
+        print(f"DEBUG: Video masks shape: {out_masks.shape if out_masks is not None else None}")
+        print(f"DEBUG: Video boxes shape: {out_boxes.shape if out_boxes is not None else None}")
+        print(f"DEBUG: Video probs shape: {out_probs.shape if out_probs is not None else None}")
+
+        # Convert to image-like format for frontend compatibility
+        masks_list = []
+        boxes_list = []
+        scores_list = []
+
+        if out_masks is not None:
+            # Convert masks from numpy array to list of 2D arrays
+            for i in range(out_masks.shape[0]):
+                mask = out_masks[i]  # (H, W)
+                masks_list.append(mask.astype(int).tolist())
+
+        if out_boxes is not None:
+            # Convert boxes from xywh to xyxy format
+            for i in range(out_boxes.shape[0]):
+                x, y, w, h = out_boxes[i]
+                # Convert xywh to xyxy (x1, y1, x2, y2)
+                x1, y1 = x, y
+                x2, y2 = x + w, y + h
+                boxes_list.append([float(x1), float(y1), float(x2), float(y2)])
+
+        if out_probs is not None:
+            scores_list = [float(score) for score in out_probs]
+
+        # Return in same format as image segmentation for frontend compatibility
         return {
+            "masks": masks_list,
+            "boxes": boxes_list,
+            "scores": scores_list,
             "session_id": session_id,
-            "outputs": serializable_outputs,
-            "prompt": prompt
+            "prompt": prompt,
+            "num_instances": len(masks_list)
         }
 
     except Exception as e:
@@ -261,6 +267,51 @@ async def segment_video_with_text(request: VideoSegmentRequest):
         print(f"ERROR in segment_video_with_text: {str(e)}")
         print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Video segmentation failed: {str(e)}")
+
+
+@router.get("/video/frame/{video_id}")
+async def get_video_frame(video_id: str, frame_index: int = 0):
+    """Extract and return a specific frame from a video as an image"""
+    try:
+        import cv2
+        storage = get_storage_service()
+
+        # Get video path
+        video_path = storage.get_upload_path(video_id)
+        if not video_path:
+            raise HTTPException(status_code=404, detail=f"Video {video_id} not found")
+
+        # Open video with OpenCV
+        cap = cv2.VideoCapture(video_path)
+
+        # Set frame position
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
+
+        # Read frame
+        ret, frame = cap.read()
+        cap.release()
+
+        if not ret:
+            raise HTTPException(status_code=400, detail=f"Could not read frame {frame_index}")
+
+        # Convert BGR to RGB
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        # Convert to PIL Image
+        frame_image = Image.fromarray(frame_rgb)
+
+        # Convert to bytes
+        img_byte_arr = io.BytesIO()
+        frame_image.save(img_byte_arr, format='JPEG')
+        img_byte_arr.seek(0)
+
+        return StreamingResponse(img_byte_arr, media_type="image/jpeg")
+
+    except Exception as e:
+        import traceback
+        print(f"ERROR in get_video_frame: {str(e)}")
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Frame extraction failed: {str(e)}")
 
 
 @router.delete("/clear/{file_id}")

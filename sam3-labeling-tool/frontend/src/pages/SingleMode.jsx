@@ -40,16 +40,25 @@ const SingleMode = () => {
     try {
       setIsLoading(true);
 
-      // Create preview
-      const reader = new FileReader();
-      reader.onload = (e) => setImagePreview(e.target.result);
-      reader.readAsDataURL(file);
-
-      // Upload file
+      // Upload file first
       const result = await uploadFile(file);
       setCurrentFile(file, result.file_id, result.file_type);
 
-      addToast('File uploaded successfully', 'success');
+      // Create preview based on file type
+      if (result.file_type === 'video') {
+        // For videos, fetch the first frame as preview
+        const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+        const frameUrl = `${API_BASE_URL}/api/segment/video/frame/${result.file_id}?frame_index=0`;
+        setImagePreview(frameUrl);
+        addToast('Video uploaded successfully', 'success');
+      } else {
+        // For images, create data URL preview
+        const reader = new FileReader();
+        reader.onload = (e) => setImagePreview(e.target.result);
+        reader.readAsDataURL(file);
+        addToast('Image uploaded successfully', 'success');
+      }
+
     } catch (error) {
       console.error('Upload error:', error);
       addToast('Failed to upload file', 'error');
@@ -77,7 +86,7 @@ const SingleMode = () => {
           0, // frame_index
           confidenceThreshold
         );
-        addToast('Video segmentation initiated', 'success');
+        addToast(`Found ${result.masks?.length || 0} instances in video`, 'success');
       } else {
         // Use image segmentation API
         result = await segmentImageWithText(
