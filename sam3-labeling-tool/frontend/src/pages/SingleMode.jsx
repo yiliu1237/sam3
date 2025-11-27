@@ -134,7 +134,8 @@ const SingleMode = () => {
         currentFileId,
         segmentationResult.masks,
         segmentationResult.scores,
-        segmentationResult.boxes
+        segmentationResult.boxes,
+        textPrompt
       );
 
       // Create download link

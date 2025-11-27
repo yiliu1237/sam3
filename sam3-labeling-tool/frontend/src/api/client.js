@@ -121,12 +121,13 @@ export const saveMasksToFolder = async (imageId, outputPath, masks, scores = [],
 };
 
 // Download masks as ZIP file
-export const downloadMasksAsZip = async (imageId, masks, scores = [], boxes = []) => {
+export const downloadMasksAsZip = async (imageId, masks, scores = [], boxes = [], prompt = '') => {
   const response = await apiClient.post('/api/segment/download_masks', {
     image_id: imageId,
     masks,
     scores,
     boxes,
+    prompt,
   }, {
     responseType: 'blob' // Important for file download
   });

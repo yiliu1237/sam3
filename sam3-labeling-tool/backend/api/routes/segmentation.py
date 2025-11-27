@@ -1,12 +1,13 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 import io
 import numpy as np
 from typing import List
 from pathlib import Path
 import zipfile
 import tempfile
+import json
 
 import sys
 import os
@@ -362,10 +363,11 @@ async def download_masks(request: dict):
     Download instance segmentation masks as a ZIP file
 
     Returns a ZIP containing:
-    - overlay_visualization.png
-    - instances.png
-    - combined_mask.png
-    - masks/mask_XX.png (individual masks)
+    - overlay_visualization.png - Colored masks with boundaries
+    - overlay_with_labels.png - Colored masks with ID labels at center
+    - combined_mask.png - All instances merged into binary mask
+    - masks/mask_XX.png - Individual binary masks
+    - metadata.json - Prompt, scores, boxes, and other metadata
     """
     try:
         storage = get_storage_service()
@@ -375,6 +377,7 @@ async def download_masks(request: dict):
         masks = request.get("masks", [])
         scores = request.get("scores", [])
         boxes = request.get("boxes", [])
+        prompt = request.get("prompt", "")  # Get prompt if available
 
         if not image_id or not masks:
             raise HTTPException(status_code=400, detail="Missing required fields")
@@ -443,19 +446,52 @@ async def download_masks(request: dict):
 
             overlay = Image.alpha_composite(overlay, overlay_layer)
 
-            # Save to ZIP
+            # Save overlay visualization to ZIP
             overlay_bytes = io.BytesIO()
             overlay.convert('RGB').save(overlay_bytes, format='PNG')
             zip_file.writestr('overlay_visualization.png', overlay_bytes.getvalue())
 
-            # 2. Create instances map
-            instances_map = np.zeros((height, width), dtype=np.uint8)
-            for idx, mask in enumerate(masks_np):
-                instances_map[mask > 0] = idx + 1
+            # 2. Create overlay with labels (ID at mask center)
+            overlay_labeled = overlay.copy()
+            draw = ImageDraw.Draw(overlay_labeled)
 
-            instances_bytes = io.BytesIO()
-            Image.fromarray(instances_map).save(instances_bytes, format='PNG')
-            zip_file.writestr('instances.png', instances_bytes.getvalue())
+            # Try to use a nice font, fallback to default if not available
+            try:
+                font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 36)
+            except:
+                try:
+                    font = ImageFont.truetype("arial.ttf", 36)
+                except:
+                    font = ImageFont.load_default()
+
+            # Calculate mask centers and draw labels
+            for idx, mask in enumerate(masks_np):
+                # Find mask center
+                ys, xs = np.where(mask > 0)
+                if len(ys) > 0:
+                    center_y = int(np.mean(ys))
+                    center_x = int(np.mean(xs))
+
+                    # Get color for this instance
+                    hue = (idx * 360 / max(len(masks_np), 1)) % 360
+                    saturation = 70 + (idx % 3) * 10
+                    lightness = 50 + (idx % 2) * 10
+                    from colorsys import hls_to_rgb
+                    r, g, b = hls_to_rgb(hue/360, lightness/100, saturation/100)
+                    text_color = (int(r*255), int(g*255), int(b*255))
+
+                    # Draw text with background for visibility
+                    text = str(idx)
+                    bbox = draw.textbbox((center_x, center_y), text, font=font)
+                    # Draw black background
+                    draw.rectangle(bbox, fill=(0, 0, 0, 200))
+                    # Draw text
+                    draw.text((center_x, center_y), text, fill=text_color, font=font, anchor="mm")
+
+            # Save labeled overlay to ZIP
+            overlay_labeled_bytes = io.BytesIO()
+            overlay_labeled.save(overlay_labeled_bytes, format='PNG')
+            zip_file.writestr('overlay_with_labels.png', overlay_labeled_bytes.getvalue())
 
             # 3. Create combined binary mask
             combined_mask = np.zeros((height, width), dtype=np.uint8)
@@ -472,6 +508,32 @@ async def download_masks(request: dict):
                 mask_bytes = io.BytesIO()
                 Image.fromarray(mask * 255).save(mask_bytes, format='PNG')
                 zip_file.writestr(mask_filename, mask_bytes.getvalue())
+
+            # 5. Create metadata JSON
+            metadata = {
+                "image_id": image_id,
+                "prompt": prompt if prompt else "N/A",
+                "num_instances": len(masks_np),
+                "image_size": {
+                    "width": width,
+                    "height": height
+                },
+                "instances": []
+            }
+
+            # Add per-instance metadata
+            for idx in range(len(masks_np)):
+                instance_data = {
+                    "id": idx,
+                    "score": float(scores[idx]) if idx < len(scores) else None,
+                    "box": [float(x) for x in boxes[idx]] if idx < len(boxes) else None,
+                    "area": int(np.sum(masks_np[idx] > 0))
+                }
+                metadata["instances"].append(instance_data)
+
+            # Save metadata JSON to ZIP
+            metadata_json = json.dumps(metadata, indent=2)
+            zip_file.writestr('metadata.json', metadata_json)
 
         # Reset buffer position
         zip_buffer.seek(0)
