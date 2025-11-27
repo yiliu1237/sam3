@@ -3,6 +3,7 @@ import { Sparkles, Loader2 } from 'lucide-react';
 import ImageUploader from '../components/ImageUploader';
 import SegmentationCanvas from '../components/SegmentationCanvas';
 import ToolPanel from '../components/ToolPanel';
+import SaveDialog from '../components/SaveDialog';
 import useStore from '../store/useStore';
 import {
   uploadFile,
@@ -15,6 +16,7 @@ import {
 
 const SingleMode = () => {
   const [imagePreview, setImagePreview] = useState(null);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
 
   const {
     currentFileId,
@@ -119,34 +121,31 @@ const SingleMode = () => {
     }
   };
 
-  // Handle save masks
-  const handleSave = async () => {
+  // Handle save masks - open dialog
+  const handleSave = () => {
     if (!currentFileId || !segmentationResult) {
       addToast('No segmentation results to save', 'error');
       return;
     }
+    setShowSaveDialog(true);
+  };
 
-    // Prompt user for output path
-    const outputPath = prompt('Enter the folder path to save masks:\n(e.g., /Users/username/Desktop/output or C:\\Users\\username\\Desktop\\output)');
-
-    if (!outputPath || outputPath.trim() === '') {
-      addToast('Save cancelled', 'info');
-      return;
-    }
-
+  // Handle save with path from dialog
+  const handleSaveWithPath = async (outputPath) => {
     try {
       setIsLoading(true);
 
       const result = await saveMasksToFolder(
         currentFileId,
-        outputPath.trim(),
+        outputPath,
         segmentationResult.masks,
         segmentationResult.scores,
         segmentationResult.boxes
       );
 
-      addToast(`Masks saved successfully to ${result.output_path}`, 'success');
+      addToast(`Masks saved successfully!`, 'success');
       console.log('Files created:', result.files_created);
+      console.log('Output path:', result.output_path);
     } catch (error) {
       console.error('Save error:', error);
       addToast(`Save failed: ${error.response?.data?.detail || error.message}`, 'error');
@@ -176,6 +175,13 @@ const SingleMode = () => {
 
   return (
     <div className="max-w-7xl mx-auto">
+      {/* Save Dialog */}
+      <SaveDialog
+        isOpen={showSaveDialog}
+        onClose={() => setShowSaveDialog(false)}
+        onSave={handleSaveWithPath}
+      />
+
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
           Single Image/Video Segmentation
