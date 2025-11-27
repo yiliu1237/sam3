@@ -212,6 +212,21 @@ async def segment_video_with_text(request: VideoSegmentRequest):
             confidence_threshold=request.confidence_threshold
         )
 
+        # Debug: print the structure of result
+        print(f"DEBUG: Video segmentation result keys: {result.keys()}")
+        print(f"DEBUG: session_id type: {type(result.get('session_id'))}")
+        print(f"DEBUG: outputs type: {type(result.get('outputs'))}")
+        if 'outputs' in result:
+            outputs = result['outputs']
+            if isinstance(outputs, dict):
+                print(f"DEBUG: outputs keys: {outputs.keys()}")
+                for key, value in outputs.items():
+                    print(f"DEBUG: outputs[{key}] type: {type(value)}")
+            elif isinstance(outputs, list):
+                print(f"DEBUG: outputs is a list with {len(outputs)} items")
+                if len(outputs) > 0:
+                    print(f"DEBUG: First item type: {type(outputs[0])}")
+
         return result
 
     except Exception as e:
