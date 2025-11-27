@@ -195,6 +195,7 @@ async def refine_segmentation(request: RefinePromptRequest):
 async def segment_video_with_text(request: VideoSegmentRequest):
     """Segment a video using text prompt"""
     try:
+        import torch
         sam3_service = get_sam3_service()
         storage = get_storage_service()
 
@@ -214,20 +215,46 @@ async def segment_video_with_text(request: VideoSegmentRequest):
 
         # Debug: print the structure of result
         print(f"DEBUG: Video segmentation result keys: {result.keys()}")
-        print(f"DEBUG: session_id type: {type(result.get('session_id'))}")
+        print(f"DEBUG: session_id: {result.get('session_id')}")
         print(f"DEBUG: outputs type: {type(result.get('outputs'))}")
-        if 'outputs' in result:
-            outputs = result['outputs']
-            if isinstance(outputs, dict):
-                print(f"DEBUG: outputs keys: {outputs.keys()}")
-                for key, value in outputs.items():
-                    print(f"DEBUG: outputs[{key}] type: {type(value)}")
-            elif isinstance(outputs, list):
-                print(f"DEBUG: outputs is a list with {len(outputs)} items")
-                if len(outputs) > 0:
-                    print(f"DEBUG: First item type: {type(outputs[0])}")
 
-        return result
+        outputs = result.get('outputs')
+        if outputs is not None:
+            if isinstance(outputs, dict):
+                print(f"DEBUG: outputs is dict with keys: {outputs.keys()}")
+                for key, value in outputs.items():
+                    if isinstance(value, (torch.Tensor, np.ndarray)):
+                        print(f"DEBUG: outputs['{key}'] = type: {type(value)}, shape: {value.shape}")
+                    else:
+                        print(f"DEBUG: outputs['{key}'] = type: {type(value)}")
+
+        # Convert outputs to JSON-serializable format recursively
+        def make_serializable(obj):
+            """Recursively convert objects to JSON-serializable format"""
+            if isinstance(obj, torch.Tensor):
+                return obj.cpu().numpy().tolist()
+            elif isinstance(obj, np.ndarray):
+                return obj.tolist()
+            elif isinstance(obj, dict):
+                return {key: make_serializable(value) for key, value in obj.items()}
+            elif isinstance(obj, list):
+                return [make_serializable(item) for item in obj]
+            elif isinstance(obj, (np.integer, np.floating)):
+                return obj.item()
+            else:
+                return obj
+
+        session_id = result.get('session_id')
+        prompt = result.get('prompt', '')
+
+        # Convert outputs recursively
+        serializable_outputs = make_serializable(outputs) if outputs is not None else None
+
+        return {
+            "session_id": session_id,
+            "outputs": serializable_outputs,
+            "prompt": prompt
+        }
 
     except Exception as e:
         import traceback
