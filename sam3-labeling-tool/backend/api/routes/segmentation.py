@@ -78,12 +78,15 @@ async def segment_image_with_text(request: TextPromptRequest):
         all_labels = []
 
         # Process each prompt separately
-        for prompt in prompts:
+        for idx, prompt in enumerate(prompts):
+            # Use unique image_id for each prompt to avoid state conflicts
+            unique_image_id = f"{request.image_id}_prompt{idx}" if len(prompts) > 1 else request.image_id
+
             # Segment with SAM 3
             result = sam3_service.segment_image_with_text(
                 image=image,
                 prompt=prompt,
-                image_id=request.image_id,
+                image_id=unique_image_id,
                 confidence_threshold=request.confidence_threshold
             )
 
