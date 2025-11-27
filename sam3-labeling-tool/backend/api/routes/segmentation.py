@@ -455,12 +455,12 @@ async def download_masks(request: dict):
             overlay_labeled = overlay.copy()
             draw = ImageDraw.Draw(overlay_labeled)
 
-            # Try to use a nice font, fallback to default if not available
+            # Try to use a nice font with larger size, fallback to default if not available
             try:
-                font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 36)
+                font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 60)
             except:
                 try:
-                    font = ImageFont.truetype("arial.ttf", 36)
+                    font = ImageFont.truetype("arial.ttf", 60)
                 except:
                     font = ImageFont.load_default()
 
@@ -472,20 +472,16 @@ async def download_masks(request: dict):
                     center_y = int(np.mean(ys))
                     center_x = int(np.mean(xs))
 
-                    # Get color for this instance
+                    # Get darker color for this instance (lower lightness)
                     hue = (idx * 360 / max(len(masks_np), 1)) % 360
-                    saturation = 70 + (idx % 3) * 10
-                    lightness = 50 + (idx % 2) * 10
+                    saturation = 80 + (idx % 3) * 5  # Higher saturation
+                    lightness = 30 + (idx % 2) * 5   # Much darker (was 50)
                     from colorsys import hls_to_rgb
                     r, g, b = hls_to_rgb(hue/360, lightness/100, saturation/100)
                     text_color = (int(r*255), int(g*255), int(b*255))
 
-                    # Draw text with background for visibility
+                    # Draw text directly without background box
                     text = str(idx)
-                    bbox = draw.textbbox((center_x, center_y), text, font=font)
-                    # Draw black background
-                    draw.rectangle(bbox, fill=(0, 0, 0, 200))
-                    # Draw text
                     draw.text((center_x, center_y), text, fill=text_color, font=font, anchor="mm")
 
             # Save labeled overlay to ZIP
