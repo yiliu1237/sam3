@@ -22,7 +22,7 @@ const Header = () => {
               SAM 3 Labeling Tool
             </h1>
             <span className="px-2 py-1 text-xs font-mono bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 rounded border border-yellow-300 dark:border-yellow-700">
-              v2.0-DEBUG
+              v5.4-CLEAN
             </span>
           </div>
 

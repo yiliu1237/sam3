@@ -10,6 +10,7 @@ const ToolPanel = ({ onClearPoints, onExport }) => {
     setConfidenceThreshold,
     refinementPoints,
     segmentationResult,
+    selectedMaskId,
   } = useStore();
 
   const tools = [
@@ -108,6 +109,14 @@ const ToolPanel = ({ onClearPoints, onExport }) => {
                   : 'N/A'}
               </span>
             </div>
+            {selectedMaskId !== null && (
+              <div className="flex justify-between mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                <span>Selected Mask ID:</span>
+                <span className="font-bold text-primary-600 dark:text-primary-400">
+                  {selectedMaskId}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       )}

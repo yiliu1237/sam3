@@ -55,17 +55,10 @@ const useStore = create((set, get) => ({
   })),
   clearRefinementBoxes: () => set({ refinementBoxes: [] }),
 
-  // Selected masks
-  selectedMasks: [],
-  toggleMaskSelection: (maskId) => set((state) => {
-    const selected = state.selectedMasks.includes(maskId);
-    return {
-      selectedMasks: selected
-        ? state.selectedMasks.filter(id => id !== maskId)
-        : [...state.selectedMasks, maskId]
-    };
-  }),
-  clearMaskSelection: () => set({ selectedMasks: [] }),
+  // Selected mask (single selection)
+  selectedMaskId: null,
+  setSelectedMaskId: (maskId) => set({ selectedMaskId: maskId }),
+  clearMaskSelection: () => set({ selectedMaskId: null }),
 
   // Batch processing
   batchJobs: {},

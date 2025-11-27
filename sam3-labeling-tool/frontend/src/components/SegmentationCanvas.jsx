@@ -1,8 +1,10 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Stage, Layer, Image as KonvaImage, Circle, Rect, Line } from 'react-konva';
+import { Stage, Layer, Image as KonvaImage, Circle, Rect, Shape, Line } from 'react-konva';
 import useStore from '../store/useStore';
 
 const SegmentationCanvas = ({ imageUrl, masks, onPointClick, onBoxDraw }) => {
+  console.log('🔵 SegmentationCanvas render - masks:', masks ? masks.length : 'null');
+
   const stageRef = useRef(null);
   const [image, setImage] = useState(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
@@ -12,16 +14,16 @@ const SegmentationCanvas = ({ imageUrl, masks, onPointClick, onBoxDraw }) => {
   const {
     activeTool,
     refinementPoints,
-    selectedMasks,
-    toggleMaskSelection,
+    selectedMaskId,
+    setSelectedMaskId,
   } = useStore();
 
   // Generate unique colors for each instance
   const generateInstanceColor = (index, total) => {
     // Use HSL color space for better color distribution
     const hue = (index * 360 / Math.max(total, 1)) % 360;
-    const saturation = 70 + (index % 3) * 10; // Vary saturation slightly
-    const lightness = 50 + (index % 2) * 10; // Vary lightness slightly
+    const saturation = 70 + (index % 3) * 10;
+    const lightness = 50 + (index % 2) * 10;
 
     // Convert HSL to RGB
     const h = hue / 360;
@@ -51,29 +53,25 @@ const SegmentationCanvas = ({ imageUrl, masks, onPointClick, onBoxDraw }) => {
     return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
   };
 
-  // Extract boundary from mask
-  const extractBoundary = (mask) => {
-    const boundaries = [];
-    const height = mask.length;
-    const width = mask[0].length;
+  // Calculate mask statistics (pixel count and center)
+  const calculateMaskStats = (mask) => {
+    let sumX = 0, sumY = 0, count = 0;
 
-    // Find edge pixels using 4-connectivity
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
+    for (let y = 0; y < mask.length; y++) {
+      for (let x = 0; x < mask[y].length; x++) {
         if (mask[y][x]) {
-          // Check if this pixel is on the boundary
-          const isEdge =
-            x === 0 || x === width - 1 || y === 0 || y === height - 1 ||
-            !mask[y-1]?.[x] || !mask[y+1]?.[x] || !mask[y][x-1] || !mask[y][x+1];
-
-          if (isEdge) {
-            boundaries.push({ x, y });
-          }
+          sumX += x;
+          sumY += y;
+          count++;
         }
       }
     }
 
-    return boundaries;
+    return {
+      pixelCount: count,
+      centerX: count > 0 ? sumX / count : 0,
+      centerY: count > 0 ? sumY / count : 0,
+    };
   };
 
   // Load image
@@ -97,6 +95,12 @@ const SegmentationCanvas = ({ imageUrl, masks, onPointClick, onBoxDraw }) => {
       });
     };
   }, [imageUrl]);
+
+  // Handle mask click for selection
+  const handleMaskClick = (maskId) => {
+    if (activeTool !== 'cursor') return;
+    setSelectedMaskId(maskId);
+  };
 
   // Handle canvas click for points
   const handleStageClick = (e) => {
@@ -163,83 +167,94 @@ const SegmentationCanvas = ({ imageUrl, masks, onPointClick, onBoxDraw }) => {
     setBoxStart(null);
   };
 
-  // Render mask overlay
+  // Render mask overlay with single transparent color
   const renderMasks = () => {
     if (!masks || !image) return null;
 
+    console.log('🎨 Total masks to render:', masks.length);
+    console.log('📐 Image dimensions:', image.width, 'x', image.height);
+    console.log('📐 Display dimensions:', dimensions.width, 'x', dimensions.height);
+    console.log('📐 Mask dimensions:', masks[0]?.[0]?.length || 0, 'x', masks[0]?.length || 0);
+
     const maskElements = [];
+    const scaleX = dimensions.width / (masks[0]?.[0]?.length || 1);
+    const scaleY = dimensions.height / (masks[0]?.length || 1);
+
+    console.log('🔍 Scale factors - scaleX:', scaleX.toFixed(3), 'scaleY:', scaleY.toFixed(3));
 
     masks.forEach((mask, idx) => {
-      const canvas = document.createElement('canvas');
-      canvas.width = mask[0].length;
-      canvas.height = mask.length;
-      const ctx = canvas.getContext('2d');
+      const isSelected = selectedMaskId === idx;
 
       // Generate unique color for this instance
       const baseColor = generateInstanceColor(idx, masks.length);
+      // Higher opacity for selected mask (0.7), lower for unselected (0.3)
+      const opacity = isSelected ? 0.7 : 0.3;
+      const fillColor = `rgba(${baseColor[0]}, ${baseColor[1]}, ${baseColor[2]}, ${opacity})`;
 
-      // Make masks very transparent - opacity range is 0-255 (using very low values for high transparency)
-      const opacity = selectedMasks.includes(idx) ? 25 : 15;
-      const color = [...baseColor, opacity];
+      // Bright border color (increase brightness by 20%)
+      const brightColor = baseColor.map(c => Math.min(255, Math.round(c * 1.2)));
+      const strokeColor = `rgb(${brightColor[0]}, ${brightColor[1]}, ${brightColor[2]})`;
 
-      // Create colored overlay
-      const imageData = ctx.createImageData(canvas.width, canvas.height);
-
-      for (let y = 0; y < mask.length; y++) {
-        for (let x = 0; x < mask[y].length; x++) {
-          if (mask[y][x]) {
-            const i = (y * mask[y].length + x) * 4;
-            imageData.data[i] = color[0];
-            imageData.data[i + 1] = color[1];
-            imageData.data[i + 2] = color[2];
-            imageData.data[i + 3] = color[3];
-          }
-        }
-      }
-
-      ctx.putImageData(imageData, 0, 0);
-
-      const maskImg = new window.Image();
-      maskImg.src = canvas.toDataURL();
-
-      // Add the mask overlay
+      // Add transparent fill (clickable)
       maskElements.push(
-        <KonvaImage
+        <Shape
           key={`mask-${idx}`}
-          image={maskImg}
-          width={dimensions.width}
-          height={dimensions.height}
-          onClick={() => toggleMaskSelection(idx)}
+          sceneFunc={(context, shape) => {
+            context.beginPath();
+
+            // Draw filled regions
+            for (let y = 0; y < mask.length; y++) {
+              for (let x = 0; x < mask[y].length; x++) {
+                if (mask[y][x]) {
+                  context.rect(x * scaleX, y * scaleY, scaleX, scaleY);
+                }
+              }
+            }
+
+            context.fillStrokeShape(shape);
+          }}
+          fill={fillColor}
+          onClick={() => handleMaskClick(idx)}
+          onTap={() => handleMaskClick(idx)}
+          listening={activeTool === 'cursor'}
         />
       );
 
-      // Add boundary visualization
-      const boundaries = extractBoundary(mask);
-      if (boundaries.length > 0) {
-        const scaleX = dimensions.width / mask[0].length;
-        const scaleY = dimensions.height / mask.length;
+      // Add bright border - draw using Shape to stroke the edges
+      maskElements.push(
+        <Shape
+          key={`border-${idx}`}
+          sceneFunc={(context, shape) => {
+            context.beginPath();
 
-        // Draw boundary points as a continuous line
-        const boundaryPoints = boundaries.flatMap(b => [
-          b.x * scaleX,
-          b.y * scaleY
-        ]);
+            // Draw only the edge pixels
+            for (let y = 0; y < mask.length; y++) {
+              for (let x = 0; x < mask[y].length; x++) {
+                if (mask[y][x]) {
+                  // Check if this pixel is on the boundary
+                  const isEdge =
+                    x === 0 || x === mask[y].length - 1 || y === 0 || y === mask.length - 1 ||
+                    !mask[y-1]?.[x] || !mask[y+1]?.[x] || !mask[y][x-1] || !mask[y][x+1];
 
-        // Use bright, fully opaque colors for boundaries
-        const brightColor = baseColor.map(c => Math.min(255, Math.round(c * 1.2)));
+                  if (isEdge) {
+                    context.rect(x * scaleX, y * scaleY, scaleX, scaleY);
+                  }
+                }
+              }
+            }
 
-        maskElements.push(
-          <Line
-            key={`boundary-${idx}`}
-            points={boundaryPoints}
-            stroke={`rgb(${brightColor[0]}, ${brightColor[1]}, ${brightColor[2]})`}
-            strokeWidth={3}
-            opacity={1.0}
-            lineCap="round"
-            lineJoin="round"
-          />
-        );
-      }
+            context.fillStrokeShape(shape);
+          }}
+          fill={strokeColor}
+          listening={false}
+        />
+      );
+
+      // Calculate mask statistics (for debugging if needed)
+      const stats = calculateMaskStats(mask);
+      const { pixelCount } = stats;
+
+      console.log(`  Mask ${idx}: ${pixelCount} pixels (${(pixelCount * scaleX * scaleY).toFixed(1)} display pixels)`);
     });
 
     return maskElements;
