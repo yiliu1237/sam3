@@ -124,6 +124,9 @@ async def segment_image_with_text(request: TextPromptRequest):
         }
 
     except Exception as e:
+        import traceback
+        print(f"ERROR in segment_image_with_text: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Segmentation failed: {str(e)}")
 
 
