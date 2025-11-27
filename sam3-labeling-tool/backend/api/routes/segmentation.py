@@ -215,6 +215,9 @@ async def segment_video_with_text(request: VideoSegmentRequest):
         return result
 
     except Exception as e:
+        import traceback
+        print(f"ERROR in segment_video_with_text: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Video segmentation failed: {str(e)}")
 
 
