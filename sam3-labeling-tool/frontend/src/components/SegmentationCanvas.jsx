@@ -168,8 +168,11 @@ const SegmentationCanvas = ({ imageUrl, masks, onPointClick, onBoxDraw }) => {
   };
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
   // Render mask overlay with single transparent color
 =======
+=======
+>>>>>>> Stashed changes
   // Generate distinct colors for each instance
   const getInstanceColor = (idx, total) => {
     // Use HSL color space to generate distinct colors
@@ -221,6 +224,10 @@ const SegmentationCanvas = ({ imageUrl, masks, onPointClick, onBoxDraw }) => {
       const [r, g, b] = getInstanceColor(idx, masks.length);
       const alpha = selectedMasks.includes(idx) ? 150 : 100; // Higher opacity for selected
 
+      // Get instance-specific color
+      const [r, g, b] = getInstanceColor(idx, masks.length);
+      const alpha = selectedMasks.includes(idx) ? 150 : 100; // Higher opacity for selected
+
       // Create colored overlay
       const imageData = ctx.createImageData(canvas.width, canvas.height);
 
@@ -232,6 +239,7 @@ const SegmentationCanvas = ({ imageUrl, masks, onPointClick, onBoxDraw }) => {
             imageData.data[i + 1] = g;
             imageData.data[i + 2] = b;
             imageData.data[i + 3] = alpha;
+<<<<<<< Updated upstream
           }
         }
       }
@@ -268,10 +276,42 @@ const SegmentationCanvas = ({ imageUrl, masks, onPointClick, onBoxDraw }) => {
               ctx.fillStyle = ctx.strokeStyle;
               ctx.fillRect(x, y, 1, 1);
             }
+=======
+>>>>>>> Stashed changes
           }
         }
       }
 
+<<<<<<< Updated upstream
+=======
+      ctx.putImageData(imageData, 0, 0);
+
+      // Draw boundary outline
+      ctx.strokeStyle = selectedMasks.includes(idx)
+        ? `rgba(255, 255, 255, 0.9)` // White outline for selected
+        : `rgba(${r}, ${g}, ${b}, 0.9)`; // Same color but opaque for unselected
+      ctx.lineWidth = 2;
+
+      // Find and draw boundaries
+      for (let y = 0; y < mask.length; y++) {
+        for (let x = 0; x < mask[y].length; x++) {
+          if (mask[y][x]) {
+            // Check if this pixel is on the boundary
+            const isBoundary =
+              (x === 0 || !mask[y][x - 1]) ||
+              (x === mask[y].length - 1 || !mask[y][x + 1]) ||
+              (y === 0 || !mask[y - 1][x]) ||
+              (y === mask.length - 1 || !mask[y + 1][x]);
+
+            if (isBoundary) {
+              ctx.fillStyle = ctx.strokeStyle;
+              ctx.fillRect(x, y, 1, 1);
+            }
+          }
+        }
+      }
+
+>>>>>>> Stashed changes
       const maskImg = new window.Image();
       maskImg.src = canvas.toDataURL();
 >>>>>>> Stashed changes
