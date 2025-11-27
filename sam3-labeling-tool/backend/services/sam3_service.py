@@ -58,20 +58,11 @@ class SAM3Service:
             self.image_model = self.image_model.to(self.device)
             self.image_processor = Sam3Processor(self.image_model)
 
-            # Initialize video predictor
-            # Build the video model first, then wrap it in the predictor
-            from sam3.model_builder import build_sam3_video_model
-
+            # Initialize video predictor (only takes checkpoint_path, uses CUDA by default)
+            # If load_from_hf is True, don't pass checkpoint_path and let it download from HF
             video_checkpoint = checkpoint_path if not load_from_hf else None
-            video_model = build_sam3_video_model(
-                checkpoint_path=video_checkpoint,
-                load_from_HF=load_from_hf,
-                device=self.device
-            )
-
             self.video_predictor = build_sam3_video_predictor(
-                model=video_model,
-                gpus_to_use=None  # Will use default device
+                checkpoint_path=video_checkpoint
             )
 
             # Store active sessions
