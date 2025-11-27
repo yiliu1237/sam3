@@ -55,7 +55,7 @@ async def upload_file(file: UploadFile = File(...)):
 
 @router.post("/image/text", response_model=SegmentationResult)
 async def segment_image_with_text(request: TextPromptRequest):
-    """Segment an image using text prompt"""
+    """Segment an image using text prompt (supports comma-separated multiple prompts)"""
     try:
         sam3_service = get_sam3_service()
         storage = get_storage_service()
@@ -68,43 +68,56 @@ async def segment_image_with_text(request: TextPromptRequest):
         # Load image
         image = Image.open(image_path).convert('RGB')
 
-        # Segment with SAM 3
-        result = sam3_service.segment_image_with_text(
-            image=image,
-            prompt=request.prompt,
-            image_id=request.image_id,
-            confidence_threshold=request.confidence_threshold
-        )
+        # Split prompt by comma for multi-label support
+        prompts = [p.strip() for p in request.prompt.split(',') if p.strip()]
 
-        # Convert tensors to lists for JSON serialization
-        # Convert masks to integers (0 or 1) - handle both numpy arrays and tensors
-        masks_converted = []
-        for mask in result["masks"]:
-            # Convert tensor to numpy if needed
-            if hasattr(mask, 'cpu'):
-                mask = mask.cpu().numpy()
-            elif not isinstance(mask, np.ndarray):
-                mask = np.array(mask)
+        # Collect all masks, boxes, scores, and labels from all prompts
+        all_masks = []
+        all_boxes = []
+        all_scores = []
+        all_labels = []
 
-            # Ensure mask is 2D (height x width)
-            if mask.ndim != 2:
-                print(f"Warning: mask has unexpected dimensions: {mask.shape}")
-                # Try to reshape if possible
-                if mask.ndim == 1:
-                    # This shouldn't happen, but handle it
-                    size = int(np.sqrt(mask.shape[0]))
-                    if size * size == mask.shape[0]:
-                        mask = mask.reshape(size, size)
+        # Process each prompt separately
+        for prompt in prompts:
+            # Segment with SAM 3
+            result = sam3_service.segment_image_with_text(
+                image=image,
+                prompt=prompt,
+                image_id=request.image_id,
+                confidence_threshold=request.confidence_threshold
+            )
 
-            # Convert to int and then to list (keeping 2D structure)
-            mask_int = mask.astype(int).tolist()
-            masks_converted.append(mask_int)
+            # Convert tensors to lists for JSON serialization
+            for mask in result["masks"]:
+                # Convert tensor to numpy if needed
+                if hasattr(mask, 'cpu'):
+                    mask = mask.cpu().numpy()
+                elif not isinstance(mask, np.ndarray):
+                    mask = np.array(mask)
+
+                # Ensure mask is 2D (height x width)
+                if mask.ndim != 2:
+                    print(f"Warning: mask has unexpected dimensions: {mask.shape}")
+                    # Try to reshape if possible
+                    if mask.ndim == 1:
+                        size = int(np.sqrt(mask.shape[0]))
+                        if size * size == mask.shape[0]:
+                            mask = mask.reshape(size, size)
+
+                # Convert to int and then to list (keeping 2D structure)
+                mask_int = mask.astype(int).tolist()
+                all_masks.append(mask_int)
+
+            # Add boxes, scores, and labels for this prompt
+            all_boxes.extend([[float(x) for x in box] for box in result["boxes"]])
+            all_scores.extend([float(score) for score in result["scores"]])
+            all_labels.extend([prompt] * len(result["scores"]))
 
         return {
-            "masks": masks_converted,
-            "boxes": [[float(x) for x in box] for box in result["boxes"]],
-            "scores": [float(score) for score in result["scores"]],
-            "labels": [request.prompt] * len(result["scores"])
+            "masks": all_masks,
+            "boxes": all_boxes,
+            "scores": all_scores,
+            "labels": all_labels
         }
 
     except Exception as e:
@@ -506,9 +519,12 @@ async def download_masks(request: dict):
                 zip_file.writestr(mask_filename, mask_bytes.getvalue())
 
             # 5. Create metadata JSON
+            # Split prompts if comma-separated
+            prompts_list = [p.strip() for p in prompt.split(',') if p.strip()] if prompt else []
+
             metadata = {
                 "image_id": image_id,
-                "prompt": prompt if prompt else "N/A",
+                "prompts": prompts_list if prompts_list else ["N/A"],
                 "num_instances": len(masks_np),
                 "image_size": {
                     "width": width,
@@ -518,9 +534,14 @@ async def download_masks(request: dict):
             }
 
             # Add per-instance metadata
+            # Note: If we have labels from segmentation result, use them
+            # Otherwise just use the full prompt string
+            labels = request.get("labels", [])
+
             for idx in range(len(masks_np)):
                 instance_data = {
                     "id": idx,
+                    "label": labels[idx] if idx < len(labels) else (prompts_list[0] if prompts_list else "N/A"),
                     "score": float(scores[idx]) if idx < len(scores) else None,
                     "box": [float(x) for x in boxes[idx]] if idx < len(boxes) else None,
                     "area": int(np.sum(masks_np[idx] > 0))

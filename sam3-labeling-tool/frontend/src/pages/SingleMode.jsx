@@ -135,7 +135,8 @@ const SingleMode = () => {
         segmentationResult.masks,
         segmentationResult.scores,
         segmentationResult.boxes,
-        textPrompt
+        textPrompt,
+        segmentationResult.labels || []
       );
 
       // Create download link
@@ -202,7 +203,7 @@ const SingleMode = () => {
                     value={textPrompt}
                     onChange={(e) => setTextPrompt(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSegment()}
-                    placeholder="Enter text prompt (e.g., 'crack', 'person', 'car')..."
+                    placeholder="Enter text prompt (e.g., 'leaf, crack' for multiple)..."
                     className="input flex-1"
                     disabled={isLoading}
                   />
