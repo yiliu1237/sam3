@@ -10,9 +10,36 @@ const VideoPlayer = ({ videoId, masks, onPointClick, onBoxDraw, onFrameChange })
   const [fps, setFps] = useState(30); // Default fps
   const [videoInfo, setVideoInfo] = useState(null);
   const [frameUrl, setFrameUrl] = useState(null);
+  const [loadedFrames, setLoadedFrames] = useState(new Set());
   const intervalRef = useRef(null);
+  const preloadBuffer = 10; // Preload next 10 frames
 
   const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+  // Preload frames ahead of current frame
+  const preloadFrames = (startFrame) => {
+    if (!videoId) return;
+
+    const framesToPreload = [];
+    for (let i = 0; i < preloadBuffer; i++) {
+      const frameIndex = startFrame + i;
+      if (frameIndex >= totalFrames) break;
+      if (!loadedFrames.has(frameIndex)) {
+        framesToPreload.push(frameIndex);
+      }
+    }
+
+    // Preload frames in parallel
+    framesToPreload.forEach((frameIndex) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      const url = `${API_BASE_URL}/api/segment/video/frame/${videoId}?frame_index=${frameIndex}`;
+      img.onload = () => {
+        setLoadedFrames((prev) => new Set([...prev, frameIndex]));
+      };
+      img.src = url;
+    });
+  };
 
   // Fetch video info on mount
   useEffect(() => {
@@ -24,6 +51,11 @@ const VideoPlayer = ({ videoId, masks, onPointClick, onBoxDraw, onFrameChange })
           setFps(info.fps);
           setVideoInfo(info);
           console.log('Video info:', info);
+
+          // Preload first few frames
+          setTimeout(() => {
+            preloadFrames(1); // Preload frames 1-10 (frame 0 loads automatically)
+          }, 100);
         } catch (error) {
           console.error('Failed to fetch video info:', error);
         }
@@ -33,18 +65,29 @@ const VideoPlayer = ({ videoId, masks, onPointClick, onBoxDraw, onFrameChange })
     fetchVideoInfo();
   }, [videoId]);
 
-  // Load frame
+  // Load current frame and preload next frames
   useEffect(() => {
-    if (videoId) {
-      const url = `${API_BASE_URL}/api/segment/video/frame/${videoId}?frame_index=${currentFrame}`;
-      setFrameUrl(url);
+    if (!videoId) return;
 
-      // Notify parent component about frame change
-      if (onFrameChange) {
-        onFrameChange(currentFrame);
-      }
+    // Use frame index directly in URL - browser will cache based on full URL
+    const url = `${API_BASE_URL}/api/segment/video/frame/${videoId}?frame_index=${currentFrame}`;
+
+    // Update immediately - let the browser handle caching
+    setFrameUrl(url);
+
+    // Mark current frame as loaded
+    setLoadedFrames((prev) => new Set([...prev, currentFrame]));
+
+    // Preload upcoming frames when playing
+    if (isPlaying) {
+      preloadFrames(currentFrame + 1);
     }
-  }, [videoId, currentFrame, API_BASE_URL, onFrameChange]);
+
+    // Notify parent component about frame change
+    if (onFrameChange) {
+      onFrameChange(currentFrame);
+    }
+  }, [videoId, currentFrame, isPlaying]);
 
   // Handle play/pause
   useEffect(() => {

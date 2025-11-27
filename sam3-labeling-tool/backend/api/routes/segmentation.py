@@ -341,10 +341,18 @@ async def get_video_frame(video_id: str, frame_index: int = 0):
 
         # Convert to bytes
         img_byte_arr = io.BytesIO()
-        frame_image.save(img_byte_arr, format='JPEG')
+        frame_image.save(img_byte_arr, format='JPEG', quality=85)
         img_byte_arr.seek(0)
 
-        return StreamingResponse(img_byte_arr, media_type="image/jpeg")
+        # Return with caching headers to prevent flickering
+        return StreamingResponse(
+            img_byte_arr,
+            media_type="image/jpeg",
+            headers={
+                "Cache-Control": "public, max-age=3600",  # Cache for 1 hour
+                "ETag": f"{video_id}-{frame_index}"  # Unique identifier for this frame
+            }
+        )
 
     except Exception as e:
         import traceback

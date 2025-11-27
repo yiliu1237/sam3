@@ -80,11 +80,11 @@ const SegmentationCanvas = ({ imageUrl, masks, onPointClick, onBoxDraw }) => {
 
     const img = new window.Image();
     img.crossOrigin = 'anonymous';
-    img.src = imageUrl;
+
     img.onload = () => {
       setImage(img);
 
-      // Calculate dimensions to fit container
+      // Calculate dimensions to fit container (only on first load or size change)
       const maxWidth = 800;
       const maxHeight = 600;
       const ratio = Math.min(maxWidth / img.width, maxHeight / img.height);
@@ -93,6 +93,14 @@ const SegmentationCanvas = ({ imageUrl, masks, onPointClick, onBoxDraw }) => {
         width: img.width * ratio,
         height: img.height * ratio,
       });
+    };
+
+    // Set src after onload handler is attached
+    img.src = imageUrl;
+
+    // Cleanup function to prevent memory leaks
+    return () => {
+      img.onload = null;
     };
   }, [imageUrl]);
 
