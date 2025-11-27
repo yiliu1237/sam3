@@ -398,10 +398,11 @@ async def download_masks(request: dict):
         if not image_id or not masks:
             raise HTTPException(status_code=400, detail="Missing required fields")
 
-        # Get original image
-        image_path = storage.get_upload_path(image_id)
+        # Get original image - remove any _promptN suffix that was added for multi-label
+        original_image_id = image_id.split('_prompt')[0]
+        image_path = storage.get_upload_path(original_image_id)
         if not image_path:
-            raise HTTPException(status_code=404, detail=f"Image {image_id} not found")
+            raise HTTPException(status_code=404, detail=f"Image {original_image_id} not found")
 
         original_image = Image.open(image_path).convert('RGB')
         width, height = original_image.size
