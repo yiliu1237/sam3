@@ -55,6 +55,12 @@ export const refineWithBox = async (imageId, box) => {
   return response.data;
 };
 
+// Get video info (metadata)
+export const getVideoInfo = async (videoId) => {
+  const response = await apiClient.get(`/api/segment/video/info/${videoId}`);
+  return response.data;
+};
+
 // Segment video with text
 export const segmentVideoWithText = async (videoId, prompt, frameIndex = 0, confidenceThreshold = 0.5) => {
   const response = await apiClient.post('/api/segment/video/text', {

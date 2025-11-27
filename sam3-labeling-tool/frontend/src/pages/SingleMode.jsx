@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Sparkles, Loader2 } from 'lucide-react';
 import ImageUploader from '../components/ImageUploader';
 import SegmentationCanvas from '../components/SegmentationCanvas';
+import VideoPlayer from '../components/VideoPlayer';
 import ToolPanel from '../components/ToolPanel';
 import useStore from '../store/useStore';
 import {
@@ -251,13 +252,22 @@ const SingleMode = () => {
                 </div>
               </div>
 
-              {/* Canvas */}
-              <SegmentationCanvas
-                imageUrl={imagePreview}
-                masks={segmentationResult?.masks}
-                onPointClick={handlePointClick}
-                onBoxDraw={handleBoxDraw}
-              />
+              {/* Canvas or Video Player */}
+              {currentFileType === 'video' ? (
+                <VideoPlayer
+                  videoId={currentFileId}
+                  masks={segmentationResult?.masks}
+                  onPointClick={handlePointClick}
+                  onBoxDraw={handleBoxDraw}
+                />
+              ) : (
+                <SegmentationCanvas
+                  imageUrl={imagePreview}
+                  masks={segmentationResult?.masks}
+                  onPointClick={handlePointClick}
+                  onBoxDraw={handleBoxDraw}
+                />
+              )}
 
               {/* Reset button */}
               <button

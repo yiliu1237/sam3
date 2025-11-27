@@ -269,6 +269,45 @@ async def segment_video_with_text(request: VideoSegmentRequest):
         raise HTTPException(status_code=500, detail=f"Video segmentation failed: {str(e)}")
 
 
+@router.get("/video/info/{video_id}")
+async def get_video_info(video_id: str):
+    """Get video metadata (total frames, fps, duration, dimensions)"""
+    try:
+        import cv2
+        storage = get_storage_service()
+
+        # Get video path
+        video_path = storage.get_upload_path(video_id)
+        if not video_path:
+            raise HTTPException(status_code=404, detail=f"Video {video_id} not found")
+
+        # Open video with OpenCV
+        cap = cv2.VideoCapture(video_path)
+
+        # Get video properties
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        duration = total_frames / fps if fps > 0 else 0
+
+        cap.release()
+
+        return {
+            "total_frames": total_frames,
+            "fps": fps,
+            "duration": duration,
+            "width": width,
+            "height": height
+        }
+
+    except Exception as e:
+        import traceback
+        print(f"ERROR in get_video_info: {str(e)}")
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Video info retrieval failed: {str(e)}")
+
+
 @router.get("/video/frame/{video_id}")
 async def get_video_frame(video_id: str, frame_index: int = 0):
     """Extract and return a specific frame from a video as an image"""
