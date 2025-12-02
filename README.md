@@ -1,387 +1,426 @@
-# SAM 3: Segment Anything with Concepts
+# SAM 3 Labeling Tool
 
-Meta Superintelligence Labs
+A web-based labeling tool powered by SAM 3 (Segment Anything Model 3) for automated image and video segmentation with text prompts and interactive refinement.
 
-[Nicolas Carion](https://www.nicolascarion.com/)\*,
-[Laura Gustafson](https://scholar.google.com/citations?user=c8IpF9gAAAAJ&hl=en)\*,
-[Yuan-Ting Hu](https://scholar.google.com/citations?user=E8DVVYQAAAAJ&hl=en)\*,
-[Shoubhik Debnath](https://scholar.google.com/citations?user=fb6FOfsAAAAJ&hl=en)\*,
-[Ronghang Hu](https://ronghanghu.com/)\*,
-[Didac Suris](https://www.didacsuris.com/)\*,
-[Chaitanya Ryali](https://scholar.google.com/citations?user=4LWx24UAAAAJ&hl=en)\*,
-[Kalyan Vasudev Alwala](https://scholar.google.co.in/citations?user=m34oaWEAAAAJ&hl=en)\*,
-[Haitham Khedr](https://hkhedr.com/)\*, Andrew Huang,
-[Jie Lei](https://jayleicn.github.io/),
-[Tengyu Ma](https://scholar.google.com/citations?user=VeTSl0wAAAAJ&hl=en),
-[Baishan Guo](https://scholar.google.com/citations?user=BC5wDu8AAAAJ&hl=en),
-Arpit Kalla, [Markus Marks](https://damaggu.github.io/),
-[Joseph Greer](https://scholar.google.com/citations?user=guL96CkAAAAJ&hl=en),
-Meng Wang, [Peize Sun](https://peizesun.github.io/),
-[Roman Rädle](https://scholar.google.com/citations?user=Tpt57v0AAAAJ&hl=en),
-[Triantafyllos Afouras](https://www.robots.ox.ac.uk/~afourast/),
-[Effrosyni Mavroudi](https://scholar.google.com/citations?user=vYRzGGEAAAAJ&hl=en),
-[Katherine Xu](https://k8xu.github.io/)°,
-[Tsung-Han Wu](https://patrickthwu.com/)°,
-[Yu Zhou](https://yu-bryan-zhou.github.io/)°,
-[Liliane Momeni](https://scholar.google.com/citations?user=Lb-KgVYAAAAJ&hl=en)°,
-[Rishi Hazra](https://rishihazra.github.io/)°,
-[Shuangrui Ding](https://mark12ding.github.io/)°,
-[Sagar Vaze](https://sgvaze.github.io/)°,
-[Francois Porcher](https://scholar.google.com/citations?user=LgHZ8hUAAAAJ&hl=en)°,
-[Feng Li](https://fengli-ust.github.io/)°,
-[Siyuan Li](https://siyuanliii.github.io/)°,
-[Aishwarya Kamath](https://ashkamath.github.io/)°,
-[Ho Kei Cheng](https://hkchengrex.com/)°,
-[Piotr Dollar](https://pdollar.github.io/)†,
-[Nikhila Ravi](https://nikhilaravi.com/)†,
-[Kate Saenko](https://ai.bu.edu/ksaenko.html)†,
-[Pengchuan Zhang](https://pzzhang.github.io/pzzhang/)†,
-[Christoph Feichtenhofer](https://feichtenhofer.github.io/)†
+![SAM 3 Labeling Tool](https://img.shields.io/badge/SAM-3-blue)
+![React](https://img.shields.io/badge/React-18-61dafb)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.104-009688)
 
-\* core contributor, ° intern, † project lead, order is random within groups
+## Features
 
-[[`Paper`](https://ai.meta.com/research/publications/sam-3-segment-anything-with-concepts/)]
-[[`Project`](https://ai.meta.com/sam3)]
-[[`Demo`](https://segment-anything.com/)]
-[[`Blog`](https://ai.meta.com/blog/segment-anything-model-3/)]
-<!-- [[`BibTeX`](#citing-sam-3)] -->
+### Dual Mode Operation
 
-![SAM 3 architecture](assets/model_diagram.png?raw=true) SAM 3 is a unified foundation model for promptable segmentation in images and videos. It can detect, segment, and track objects using text or visual prompts such as points, boxes, and masks. Compared to its predecessor [SAM 2](https://github.com/facebookresearch/sam2), SAM 3 introduces the ability to exhaustively segment all instances of an open-vocabulary concept specified by a short text phrase or exemplars. Unlike prior work, SAM 3 can handle a vastly larger set of open-vocabulary prompts. It achieves 75-80% of human performance on our new [SA-CO benchmark](https://github.com/facebookresearch/sam3/edit/main_readme/README.md#sa-co-dataset) which contains 270K unique concepts, over 50 times more than existing benchmarks.
+- **Single Mode**: Upload and segment individual images/videos with real-time interaction
+- **Batch Mode**: Process entire folders of images/videos automatically
 
-This breakthrough is driven by an innovative data engine that has automatically annotated over 4 million unique concepts, creating the largest high-quality open-vocabulary segmentation dataset to date. In addition, SAM 3 introduces a new model architecture featuring a presence token that improves discrimination between closely related text prompts (e.g., “a player in white” vs. “a player in red”), as well as a decoupled detector–tracker design that minimizes task interference and scales efficiently with data.
+### Powered by SAM 3
 
-<p align="center">
-  <img src="assets/dog.gif" width=380 />
-  <img src="assets/player.gif" width=380 />
-</p>
+- Text-based prompting (e.g., "plant", "person", "car")
+- Open-vocabulary segmentation (270K+ concepts)
+- High-quality instance segmentation
+- Video object tracking
+
+### Interactive Mask Refinement
+
+- **Instance-Aware Editing**: Select and modify individual mask instances
+- **Brush Tool**: Paint to add pixels to selected masks with adjustable brush size
+- **Eraser Tool**: Remove unwanted pixels from masks with precision control
+- **Undo/Redo System**: Revert changes with full history tracking (50 states)
+- **Mask Management**: Delete, create, and organize multiple mask instances
+
+### Batch Processing
+
+- Process folders with hundreds/thousands of images
+- Multiple text prompts per batch
+- Progress tracking with live updates
+- Export in COCO JSON, Mask PNG, or both
+
+### Beautiful UI
+
+- Clean, modern interface with dark/light themes
+- Responsive design
+- Smooth animations
+- Toast notifications
+- Professional color scheme
+
+## Architecture
+
+```
+sam3-labeling-tool/
+├── backend/                 # FastAPI backend
+│   ├── api/
+│   │   ├── routes/         # API endpoints
+│   │   └── models.py       # Pydantic models
+│   ├── services/
+│   │   ├── sam3_service.py # SAM 3 integration
+│   │   ├── batch_processor.py
+│   │   └── storage.py
+│   └── requirements.txt
+│
+├── frontend/                # React frontend
+│   ├── src/
+│   │   ├── components/     # UI components
+│   │   ├── pages/          # Main pages
+│   │   ├── api/            # API client
+│   │   └── store/          # State management
+│   └── package.json
+│
+└── data/                    # Data storage
+    ├── uploads/
+    ├── outputs/
+    └── temp/
+```
 
 ## Installation
 
 ### Prerequisites
 
-- Python 3.12 or higher
-- PyTorch 2.7 or higher
-- CUDA-compatible GPU with CUDA 12.6 or higher
+- **Python 3.12+**
+- **Node.js 18+**
+- **CUDA-compatible GPU** (recommended)
+- **SAM 3 model checkpoints** (HuggingFace authentication required)
 
-1. **Create a new Conda environment:**
-
-```bash
-conda create -n sam3 python=3.12
-conda deactivate
-conda activate sam3
-```
-
-2. **Install PyTorch with CUDA support:**
+### 1. Clone the Repository
 
 ```bash
-pip install torch==2.7.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
+cd /path/to/sam3
+cd sam3-labeling-tool
 ```
 
-3. **Clone the repository and install the package:**
+### 2. Backend Setup
 
 ```bash
-git clone https://github.com/facebookresearch/sam3.git
-cd sam3
-pip install -e .
+cd backend
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Install SAM 3 (from parent directory)
+pip install -e ../../
 ```
 
-4. **Install additional dependencies for example notebooks or development:**
+### 3. Frontend Setup
 
 ```bash
-# For running example notebooks
-pip install -e ".[notebooks]"
+cd ../frontend
 
-# For development
-pip install -e ".[train,dev]"
+# Install dependencies
+npm install
 ```
 
-## Getting Started
+### 4. Model Setup (Choose ONE option)
 
-⚠️ Before using SAM 3, please request access to the checkpoints on the SAM 3
-Hugging Face [repo](https://huggingface.co/facebook/sam3). Once accepted, you
-need to be authenticated to download the checkpoints. You can do this by running
-the following [steps](https://huggingface.co/docs/huggingface_hub/en/quick-start#authentication)
-(e.g. `hf auth login` after generating an access token.)
+SAM 3 requires model checkpoints. Choose one of these options:
 
-### Basic Usage
-
-```python
-import torch
-#################################### For Image ####################################
-from PIL import Image
-from sam3.model_builder import build_sam3_image_model
-from sam3.model.sam3_image_processor import Sam3Processor
-# Load the model
-model = build_sam3_image_model()
-processor = Sam3Processor(model)
-# Load an image
-image = Image.open("<YOUR_IMAGE_PATH.jpg>")
-inference_state = processor.set_image(image)
-# Prompt the model with text
-output = processor.set_text_prompt(state=inference_state, prompt="<YOUR_TEXT_PROMPT>")
-
-# Get the masks, bounding boxes, and scores
-masks, boxes, scores = output["masks"], output["boxes"], output["scores"]
-
-#################################### For Video ####################################
-
-from sam3.model_builder import build_sam3_video_predictor
-
-video_predictor = build_sam3_video_predictor()
-video_path = "<YOUR_VIDEO_PATH>" # a JPEG folder or an MP4 video file
-# Start a session
-response = video_predictor.handle_request(
-    request=dict(
-        type="start_session",
-        resource_path=video_path,
-    )
-)
-response = video_predictor.handle_request(
-    request=dict(
-        type="add_prompt",
-        session_id=response["session_id"],
-        frame_index=0, # Arbitrary frame index
-        text="<YOUR_TEXT_PROMPT>",
-    )
-)
-output = response["outputs"]
-```
-
-## Examples
-
-The `examples` directory contains notebooks demonstrating how to use SAM3 with
-various types of prompts:
-
-- [`sam3_image_predictor_example.ipynb`](examples/sam3_image_predictor_example.ipynb)
-  : Demonstrates how to prompt SAM 3 with text and visual box prompts on images.
-- [`sam3_video_predictor_example.ipynb`](examples/sam3_video_predictor_example.ipynb)
-  : Demonstrates how to prompt SAM 3 with text prompts on videos, and doing
-  further interactive refinements with points.
-- [`sam3_image_batched_inference.ipynb`](examples/sam3_image_batched_inference.ipynb)
-  : Demonstrates how to run batched inference with SAM 3 on images.
-- [`sam3_agent.ipynb`](examples/sam3_agent.ipynb): Demonsterates the use of SAM
-  3 Agent to segment complex text prompt on images.
-- [`saco_gold_silver_vis_example.ipynb`](examples/saco_gold_silver_vis_example.ipynb)
-  : Shows a few examples from SA-Co image evaluation set.
-- [`saco_veval_vis_example.ipynb`](examples/saco_veval_vis_example.ipynb) :
-  Shows a few examples from SA-Co video evaluation set.
-
-There are additional notebooks in the examples directory that demonstrate how to
-use SAM 3 for interactive instance segmentation in images and videos (SAM 1/2
-tasks), or as a tool for an MLLM, and how to run evaluations on the SA-Co
-dataset.
-
-To run the Jupyter notebook examples:
+#### Option A: HuggingFace 
 
 ```bash
-# Make sure you have the notebooks dependencies installed
-pip install -e ".[notebooks]"
+# Install huggingface-cli if not already installed
+pip install huggingface_hub
 
-# Start Jupyter notebook
-jupyter notebook examples/sam3_image_predictor_example.ipynb
+# Login to HuggingFace
+huggingface-cli login
 ```
 
-## Model
+Then request access to the SAM 3 model at: https://huggingface.co/facebook/sam3
 
-SAM 3 consists of a detector and a tracker that share a vision encoder. It has 848M parameters. The
-detector is a DETR-based model conditioned on text, geometry, and image
-exemplars. The tracker inherits the SAM 2 transformer encoder-decoder
-architecture, supporting video segmentation and interactive refinement.
+#### Option B: Local Checkpoint
 
-## Image Results
+If you have a local checkpoint file, set the environment variable:
 
-<div align="center">
-<table style="min-width: 80%; border: 2px solid #ddd; border-collapse: collapse">
-  <thead>
-    <tr>
-      <th rowspan="3" style="border-right: 2px solid #ddd; padding: 12px 20px">Model</th>
-      <th colspan="3" style="text-align: center; border-right: 2px solid #ddd; padding: 12px 20px">Instance Segmentation</th>
-      <th colspan="5" style="text-align: center; padding: 12px 20px">Box Detection</th>
-    </tr>
-    <tr>
-      <th colspan="2" style="text-align: center; border-right: 1px solid #eee; padding: 12px 20px">LVIS</th>
-      <th style="text-align: center; border-right: 2px solid #ddd; padding: 12px 20px">SA-Co/Gold</th>
-      <th colspan="2" style="text-align: center; border-right: 1px solid #eee; padding: 12px 20px">LVIS</th>
-      <th colspan="2" style="text-align: center; border-right: 1px solid #eee; padding: 12px 20px">COCO</th>
-      <th style="text-align: center; padding: 12px 20px">SA-Co/Gold</th>
-    </tr>
-    <tr>
-      <th style="text-align: center; padding: 12px 20px">cgF1</th>
-      <th style="text-align: center; border-right: 1px solid #eee; padding: 12px 20px">AP</th>
-      <th style="text-align: center; border-right: 2px solid #ddd; padding: 12px 20px">cgF1</th>
-      <th style="text-align: center; padding: 12px 20px">cgF1</th>
-      <th style="text-align: center; border-right: 1px solid #eee; padding: 12px 20px">AP</th>
-      <th style="text-align: center; padding: 12px 20px">AP</th>
-      <th style="text-align: center; border-right: 1px solid #eee; padding: 12px 20px">AP<sub>o</sub>
-</th>
-      <th style="text-align: center; padding: 12px 20px">cgF1</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td style="border-right: 2px solid #ddd; padding: 10px 20px">Human</td>
-      <td style="text-align: center; padding: 10px 20px">-</td>
-      <td style="text-align: center; border-right: 1px solid #eee; padding: 10px 20px">-</td>
-      <td style="text-align: center; border-right: 2px solid #ddd; padding: 10px 20px">72.8</td>
-      <td style="text-align: center; padding: 10px 20px">-</td>
-      <td style="text-align: center; border-right: 1px solid #eee; padding: 10px 20px">-</td>
-      <td style="text-align: center; padding: 10px 20px">-</td>
-      <td style="text-align: center; border-right: 1px solid #eee; padding: 10px 20px">-</td>
-      <td style="text-align: center; padding: 10px 20px">74.0</td>
-    </tr>
-    <tr>
-      <td style="border-right: 2px solid #ddd; padding: 10px 20px">OWLv2*</td>
-      <td style="text-align: center; padding: 10px 20px; color: #999">29.3</td>
-      <td style="text-align: center; border-right: 1px solid #eee; padding: 10px 20px; color: #999">43.4</td>
-      <td style="text-align: center; border-right: 2px solid #ddd; padding: 10px 20px">24.6</td>
-      <td style="text-align: center; padding: 10px 20px; color: #999">30.2</td>
-      <td style="text-align: center; border-right: 1px solid #eee; padding: 10px 20px; color: #999">45.5</td>
-      <td style="text-align: center; padding: 10px 20px">46.1</td>
-      <td style="text-align: center; border-right: 1px solid #eee; padding: 10px 20px">23.9</td>
-      <td style="text-align: center; padding: 10px 20px">24.5</td>
-    </tr>
-    <tr>
-      <td style="border-right: 2px solid #ddd; padding: 10px 20px">DINO-X</td>
-      <td style="text-align: center; padding: 10px 20px">-</td>
-      <td style="text-align: center; border-right: 1px solid #eee; padding: 10px 20px">38.5</td>
-      <td style="text-align: center; border-right: 2px solid #ddd; padding: 10px 20px">21.3</td>
-      <td style="text-align: center; padding: 10px 20px">-</td>
-      <td style="text-align: center; border-right: 1px solid #eee; padding: 10px 20px">52.4</td>
-      <td style="text-align: center; padding: 10px 20px">56.0</td>
-      <td style="text-align: center; border-right: 1px solid #eee; padding: 10px 20px">-</td>
-      <td style="text-align: center; padding: 10px 20px">22.5</td>
-    </tr>
-    <tr>
-      <td style="border-right: 2px solid #ddd; padding: 10px 20px">Gemini 2.5</td>
-      <td style="text-align: center; padding: 10px 20px">13.4</td>
-      <td style="text-align: center; border-right: 1px solid #eee; padding: 10px 20px">-</td>
-      <td style="text-align: center; border-right: 2px solid #ddd; padding: 10px 20px">13.0</td>
-      <td style="text-align: center; padding: 10px 20px">16.1</td>
-      <td style="text-align: center; border-right: 1px solid #eee; padding: 10px 20px">-</td>
-      <td style="text-align: center; padding: 10px 20px">-</td>
-      <td style="text-align: center; border-right: 1px solid #eee; padding: 10px 20px">-</td>
-      <td style="text-align: center; padding: 10px 20px">14.4</td>
-    </tr>
-    <tr style="border-top: 2px solid #b19c9cff">
-      <td style="border-right: 2px solid #ddd; padding: 10px 20px">SAM 3</td>
-      <td style="text-align: center; padding: 10px 20px">37.2</td>
-      <td style="text-align: center; border-right: 1px solid #eee; padding: 10px 20px">48.5</td>
-      <td style="text-align: center; border-right: 2px solid #ddd; padding: 10px 20px">54.1</td>
-      <td style="text-align: center; padding: 10px 20px">40.6</td>
-      <td style="text-align: center; border-right: 1px solid #eee; padding: 10px 20px">53.6</td>
-      <td style="text-align: center; padding: 10px 20px">56.4</td>
-      <td style="text-align: center; border-right: 1px solid #eee; padding: 10px 20px">55.7</td>
-      <td style="text-align: center; padding: 10px 20px">55.7</td>
-    </tr>
-  </tbody>
-</table>
+```bash
+export SAM3_CHECKPOINT_PATH=/path/to/sam3.pt
+```
 
-<p style="text-align: center; margin-top: 10px; font-size: 0.9em; color: #ddd;">* Partially trained on LVIS, AP<sub>o</sub> refers to COCO-O accuracy</p>
+Or add it to your shell startup file (~/.bashrc or ~/.zshrc)
 
-</div>
+## Running the Application
 
-## Video Results
+### Start Backend Server
 
-<div align="center">
-<table style="min-width: 80%; border: 2px solid #ddd; border-collapse: collapse">
-  <thead>
-    <tr>
-      <th rowspan="2" style="border-right: 2px solid #ddd; padding: 12px 20px">Model</th>
-      <th colspan="2" style="text-align: center; border-right: 1px solid #eee; padding: 12px 20px">SA-V test</th>
-      <th colspan="2" style="text-align: center; border-right: 1px solid #eee; padding: 12px 20px">YT-Temporal-1B test</th>
-      <th colspan="2" style="text-align: center; border-right: 1px solid #eee; padding: 12px 20px">SmartGlasses test</th>
-      <th style="text-align: center; border-right: 1px solid #eee; padding: 12px 20px">LVVIS test</th>
-      <th style="text-align: center; padding: 12px 20px">BURST test</th>
-    </tr>
-    <tr>
-      <th style="text-align: center; padding: 12px 20px">cgF1</th>
-      <th style="text-align: center; border-right: 1px solid #eee; padding: 12px 20px">pHOTA</th>
-      <th style="text-align: center; padding: 12px 20px">cgF1</th>
-      <th style="text-align: center; border-right: 1px solid #eee; padding: 12px 20px">pHOTA</th>
-      <th style="text-align: center; padding: 12px 20px">cgF1</th>
-      <th style="text-align: center; border-right: 1px solid #eee; padding: 12px 20px">pHOTA</th>
-      <th style="text-align: center; border-right: 1px solid #eee; padding: 12px 20px">mAP</th>
-      <th style="text-align: center; padding: 12px 20px">HOTA</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td style="border-right: 2px solid #ddd; padding: 10px 20px">Human</td>
-      <td style="text-align: center; padding: 10px 20px">53.1</td>
-      <td style="text-align: center; border-right: 1px solid #eee; padding: 10px 20px">70.5</td>
-      <td style="text-align: center; padding: 10px 20px">71.2</td>
-      <td style="text-align: center; border-right: 1px solid #eee; padding: 10px 20px">78.4</td>
-      <td style="text-align: center; padding: 10px 20px">58.5</td>
-      <td style="text-align: center; border-right: 1px solid #eee; padding: 10px 20px">72.3</td>
-      <td style="text-align: center; border-right: 1px solid #eee; padding: 10px 20px">-</td>
-      <td style="text-align: center; padding: 10px 20px">-</td>
-    </tr>
-    <tr style="border-top: 2px solid #b19c9cff">
-      <td style="border-right: 2px solid #ddd; padding: 10px 20px">SAM 3</td>
-      <td style="text-align: center; padding: 10px 20px">30.3</td>
-      <td style="text-align: center; border-right: 1px solid #eee; padding: 10px 20px">58.0</td>
-      <td style="text-align: center; padding: 10px 20px">50.8</td>
-      <td style="text-align: center; border-right: 1px solid #eee; padding: 10px 20px">69.9</td>
-      <td style="text-align: center; padding: 10px 20px">36.4</td>
-      <td style="text-align: center; border-right: 1px solid #eee; padding: 10px 20px">63.6</td>
-      <td style="text-align: center; border-right: 1px solid #eee; padding: 10px 20px">36.3</td>
-      <td style="text-align: center; padding: 10px 20px">44.5</td>
-    </tr>
-  </tbody>
-</table>
-</div>
+```bash
+cd backend
+source venv/bin/activate  # Activate virtual environment
 
-## SA-Co Dataset
+# Run with uvicorn
+python -m uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+```
 
-We release 2 image benchmarks, [SA-Co/Gold](scripts/eval/gold/README.md) and
-[SA-Co/Silver](scripts/eval/silver/README.md), and a video benchmark
-[SA-Co/VEval](scripts/eval/veval/README.md). The datasets contain images (or videos) with annotated noun phrases. Each image/video and noun phrase pair is annotated with instance masks and unique IDs of each object matching the phrase. Phrases that have no matching objects (negative prompts) have no masks, shown in red font in the figure. See the linked READMEs for more details on how to download and run evaluations on the datasets.
+Backend will be available at: `http://localhost:8000`
 
-* HuggingFace host: [SA-Co/Gold](https://huggingface.co/datasets/facebook/SACo-Gold), [SA-Co/Silver](https://huggingface.co/datasets/facebook/SACo-Silver) and [SA-Co/VEval](https://huggingface.co/datasets/facebook/SACo-VEval)
-* Roboflow host: [SA-Co/Gold](https://universe.roboflow.com/sa-co-gold), [SA-Co/Silver](https://universe.roboflow.com/sa-co-silver) and [SA-Co/VEval](https://universe.roboflow.com/sa-co-veval)
+API docs available at: `http://localhost:8000/docs`
 
-![SA-Co dataset](assets/sa_co_dataset.jpg?raw=true)
+### Start Frontend Development Server
+
+```bash
+cd frontend
+
+# Run Vite dev server
+npm run dev
+```
+
+Frontend will be available at: `http://localhost:3000`
+
+## Usage
+
+### Single Mode
+
+1. Navigate to **Single Mode** tab
+2. **Upload** an image or video file
+3. Enter a **text prompt** (e.g., "crack", "person", "car")
+4. Click **Segment** to run SAM 3 inference
+5. **Review** detected mask instances in the mask list panel
+6. **Refine** individual masks using interactive tools:
+   - **Select** a mask instance from the list
+   - **Brush Tool**: Paint to add missing pixels to the selected mask
+   - **Eraser Tool**: Remove incorrectly segmented pixels from the mask
+   - **Adjust** brush size (5-100px) for fine or coarse editing
+   - **Undo/Redo**: Use keyboard shortcuts (Ctrl+Z / Ctrl+Shift+Z) to revert changes
+   - **Delete**: Remove entire mask instances if needed
+7. **Create** new mask instances manually using the brush tool
+8. **Download** results as a ZIP file containing masks and metadata
+
+### Batch Mode
+
+1. Navigate to **Batch Mode** tab
+2. Specify **Input Folder** (containing images/videos)
+3. Specify **Output Folder** (for results)
+4. Add **Text Prompts** (one or more)
+5. Configure:
+   - Export format (COCO, Mask PNG, or both)
+   - Confidence threshold
+   - Process videos option
+6. Click **Start Batch Processing**
+7. Monitor progress in real-time
+8. **Download** results when complete
+
+## Mask Refinement Workflow
+
+The tool provides instance-aware mask editing capabilities for precise segmentation refinement:
+
+### Initial Segmentation
+
+Text-based prompts generate multiple mask instances automatically. SAM 3 detects all objects matching the prompt across the image, with each detection stored as a separate instance.
+
+### Instance Selection
+
+The mask list panel displays all detected instances with their confidence scores. Users select a specific mask to edit by clicking its entry in the list. The selected mask is highlighted on the canvas with visual emphasis.
+
+### Brush Tool Operations
+
+The brush tool adds pixels to the selected mask instance. Users paint directly on the canvas to extend mask boundaries or fill missed regions. Brush size is adjustable from 5 to 100 pixels for different levels of precision. The tool operates only on the selected mask, leaving other instances unmodified.
+
+### Eraser Tool Operations
+
+The eraser tool removes pixels from the selected mask instance. Users paint over incorrectly segmented regions to subtract them from the mask. If all pixels are removed, the mask instance is automatically deleted from the list. The eraser requires an active mask selection and cannot modify other instances.
+
+### History Management
+
+All mask modifications are tracked in a history buffer with a capacity of 50 states. Users can undo operations with Ctrl+Z or Cmd+Z, and redo with Ctrl+Shift+Z or Cmd+Shift+Y. The history system preserves the complete segmentation state including all mask instances.
+
+### Manual Mask Creation
+
+Users can create new mask instances from scratch by selecting "Create New Mask" and using the brush tool. The new mask is added to the instance list and can be refined with the same tools.
+
+### Export Format
+
+Downloaded results include binary mask images for each instance, bounding box coordinates, confidence scores, and metadata in JSON format. All files are packaged in a ZIP archive for convenient download.
+
+## API Endpoints
+
+### Segmentation
+
+- `POST /api/segment/upload` - Upload image or video file
+- `POST /api/segment/image/text` - Segment image using text prompt
+- `POST /api/segment/image/edit-mask` - Edit mask using brush/eraser strokes
+- `POST /api/segment/video/text` - Segment video using text prompt
+- `GET /api/segment/video/frame/{file_id}` - Retrieve video frame
+- `DELETE /api/segment/clear/{file_id}` - Clear cached inference state
+
+### Batch Processing
+
+- `POST /api/batch/process` - Create batch job
+- `GET /api/batch/status/{job_id}` - Get job status
+
+### Export
+
+- `POST /api/export/annotations` - Export annotations
+- `GET /api/export/download/{job_id}` - Download batch results
+
+## Configuration
+
+### Backend Settings
+
+Edit `backend/api/main.py` to configure:
+
+- CORS origins
+- Upload limits
+- Storage paths
+
+### Frontend Settings
+
+Create `frontend/.env` file:
+
+```env
+VITE_API_URL=http://localhost:8000
+```
+
+## Tech Stack
+
+### Backend
+
+- **FastAPI** - Modern, fast web framework
+- **SAM 3** - Meta's foundation model for segmentation
+- **PyTorch** - Deep learning framework
+- **Uvicorn** - ASGI server
+- **Pydantic** - Data validation
+
+### Frontend
+
+- **React 18** - UI library
+- **Vite** - Build tool
+- **TailwindCSS** - Utility-first CSS
+- **Konva.js** - Canvas manipulation
+- **Zustand** - State management
+- **Framer Motion** - Animations
+- **Axios** - HTTP client
+- **Lucide React** - Icons
+
+## Project Structure Details
+
+### Backend Services
+
+- **sam3_service.py**: Wraps SAM 3 models for inference
+- **batch_processor.py**: Handles batch job creation and processing
+- **storage.py**: Manages file uploads and outputs
+
+### Frontend Components
+
+- **Header**: Navigation and theme toggle
+- **ImageUploader**: Drag and drop file upload with preview
+- **SegmentationCanvas**: Interactive canvas with Konva.js for mask visualization and editing
+- **ToolPanel**: Tool selection, brush size controls, and undo/redo interface
+- **MaskList**: Instance list with selection, deletion, and creation controls
+- **VideoPlayer**: Video frame navigation and mask overlay
+- **ToastContainer**: Notification system for user feedback
+
+### Frontend Pages
+
+- **SingleMode**: Single image/video segmentation interface
+- **BatchMode**: Batch processing interface
+
+## Performance Tips
+
+1. **GPU Acceleration**: Ensure CUDA is properly configured for faster inference
+2. **Batch Size**: For large batches, consider processing in chunks
+3. **Confidence Threshold**: Adjust to filter low-quality predictions
+4. **Memory Management**: Clear file states after processing to free memory
+
+## Troubleshooting
+
+### Backend Issues
+
+**Model download fails:**
+```bash
+# Ensure HuggingFace authentication
+huggingface-cli login
+```
+
+**CUDA out of memory:**
+- Reduce image resolution
+- Clear cached states
+- Process smaller batches
+
+### Frontend Issues
+
+**API connection fails:**
+- Check backend is running on port 8000
+- Verify CORS settings in `backend/api/main.py`
+
+**Canvas rendering issues:**
+- Update browser to latest version
+- Check WebGL support
 
 ## Development
 
-To set up the development environment:
+### Backend Development
 
 ```bash
-pip install -e ".[dev,train]"
+cd backend
+
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Format code
+black .
 ```
 
-To format the code:
+### Frontend Development
 
 ```bash
-ufmt format .
+cd frontend
+
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
 ```
 
-## Contributing
+## Docker Deployment (Optional)
 
-See [contributing](CONTRIBUTING.md) and the
-[code of conduct](CODE_OF_CONDUCT.md).
+Create `docker-compose.yml`:
+
+```yaml
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+```
+
+Run with:
+```bash
+docker-compose up
+```
+
 
 ## License
 
-This project is licensed under the SAM License - see the [LICENSE](LICENSE) file
-for details.
+This project uses SAM 3, which is licensed under the SAM License. See the main SAM 3 repository for details.
 
-## Acknowledgements
+## Acknowledgments
 
-We would like to thank the following people for their contributions to the SAM 3 project: Alex He, Alexander Kirillov,
-Alyssa Newcomb, Ana Paula Kirschner Mofarrej, Andrea Madotto, Andrew Westbury, Ashley Gabriel, Azita Shokpour,
-Ben Samples, Bernie Huang, Carleigh Wood, Ching-Feng Yeh, Christian Puhrsch, Claudette Ward, Daniel Bolya,
-Daniel Li, Facundo Figueroa, Fazila Vhora, George Orlin, Hanzi Mao, Helen Klein, Hu Xu, Ida Cheng, Jake Kinney,
-Jiale Zhi, Jo Sampaio, Joel Schlosser, Justin Johnson, Kai Brown, Karen Bergan, Karla Martucci, Kenny Lehmann,
-Maddie Mintz, Mallika Malhotra, Matt Ward, Michelle Chan, Michelle Restrepo, Miranda Hartley, Muhammad Maaz,
-Nisha Deo, Peter Park, Phillip Thomas, Raghu Nayani, Rene Martinez Doehner, Robbie Adkins, Ross Girshik, Sasha
-Mitts, Shashank Jain, Spencer Whitehead, Ty Toledano, Valentin Gabeur, Vincent Cho, Vivian Lee, William Ngan,
-Xuehai He, Yael Yungster, Ziqi Pang, Ziyi Dou, Zoe Quake.
+- **Meta AI** for SAM 3 model
+- **FastAPI** team for the excellent framework
+- **React** and **Vite** communities
 
-<!-- ## Citing SAM 3
+## Contact & Support
 
-If you use SAM 3 or the SA-Co dataset in your research, please use the following BibTeX entry.
+For issues and questions:
+- Open an issue on GitHub
+- Check SAM 3 documentation: https://ai.meta.com/sam3
 
-```bibtex
-TODO
-``` -->
+---
+
+**Built with using SAM 3, React, and FastAPI**
