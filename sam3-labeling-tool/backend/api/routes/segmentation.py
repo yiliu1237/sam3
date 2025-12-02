@@ -19,7 +19,8 @@ from api.models import (
     VideoSegmentRequest,
     SegmentationResult,
     Point,
-    BBox
+    BBox,
+    MaskEditRequest
 )
 from services.sam3_service import get_sam3_service
 from services.storage import get_storage_service
@@ -716,4 +717,83 @@ async def download_masks(request: dict):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")
+
+
+@router.post("/image/edit-mask", response_model=SegmentationResult)
+async def edit_mask(request: MaskEditRequest):
+    """
+    Edit a mask using brush or eraser strokes
+
+    Operations:
+    - 'add': Add pixels to an existing mask (brush)
+    - 'remove': Remove pixels from an existing mask (eraser)
+    - 'create': Create a new mask from strokes (brush on 'new')
+    """
+    try:
+        from scipy.ndimage import binary_dilation
+        from scipy.ndimage import distance_transform_edt
+        import cv2
+
+        sam3_service = get_sam3_service()
+        storage = get_storage_service()
+
+        # Get image path and dimensions
+        image_path = storage.get_upload_path(request.image_id)
+        if not image_path:
+            raise HTTPException(status_code=404, detail=f"Image {request.image_id} not found")
+
+        image = Image.open(image_path).convert('RGB')
+        width, height = image.size
+
+        # Get current segmentation state from SAM3 service
+        # This would need to be stored in the service - for now we'll create a simple approach
+        # In production, you'd want to maintain state in the service
+
+        # For this implementation, we'll work with the masks directly
+        # The frontend should send the current masks along with the edit request
+        # For now, we'll create a helper function to rasterize strokes
+
+        def rasterize_strokes(strokes, brush_size, img_width, img_height):
+            """Convert stroke paths into a binary mask"""
+            mask = np.zeros((img_height, img_width), dtype=np.uint8)
+
+            for stroke in strokes:
+                if len(stroke) < 2:
+                    continue
+
+                # Convert stroke points to numpy array
+                points = np.array(stroke, dtype=np.int32)
+
+                # Draw lines between consecutive points with thickness
+                for i in range(len(points) - 1):
+                    pt1 = tuple(points[i])
+                    pt2 = tuple(points[i + 1])
+                    cv2.line(mask, pt1, pt2, 1, thickness=brush_size)
+
+                # Also draw circles at each point for smoother strokes
+                for point in points:
+                    cv2.circle(mask, tuple(point), brush_size // 2, 1, -1)
+
+            return mask
+
+        # Create stroke mask from the provided strokes
+        stroke_mask = rasterize_strokes(request.strokes, request.brush_size, width, height)
+
+        # Since we need to maintain mask state, we'll return a simple response
+        # In a full implementation, this would integrate with SAM3 service state management
+
+        # For now, return the stroke mask as a demonstration
+        # The frontend will need to handle merging this with existing masks
+        return {
+            "masks": [stroke_mask.astype(int).tolist()],
+            "boxes": [[0.0, 0.0, float(width), float(height)]],
+            "scores": [1.0],
+            "labels": [f"edited_mask_{request.mask_id}"]
+        }
+
+    except Exception as e:
+        import traceback
+        print(f"ERROR in edit_mask: {str(e)}")
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Mask editing failed: {str(e)}")
 

@@ -11,8 +11,10 @@ const VideoPlayer = ({ videoId, masks, onPointClick, onBoxDraw, onFrameChange })
   const [videoInfo, setVideoInfo] = useState(null);
   const [frameUrl, setFrameUrl] = useState(null);
   const [loadedFrames, setLoadedFrames] = useState(new Set());
+  const [isBuffering, setIsBuffering] = useState(false);
   const intervalRef = useRef(null);
   const preloadBuffer = 10; // Preload next 10 frames
+  const minBufferSize = 5; // Minimum frames ahead to have loaded before playing
 
   const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -89,9 +91,34 @@ const VideoPlayer = ({ videoId, masks, onPointClick, onBoxDraw, onFrameChange })
     }
   }, [videoId, currentFrame, isPlaying]);
 
+  // Check if we have enough buffered frames ahead
+  useEffect(() => {
+    if (!isPlaying) {
+      setIsBuffering(false);
+      return;
+    }
+
+    // Count how many frames ahead are loaded
+    let bufferedCount = 0;
+    for (let i = 1; i <= minBufferSize; i++) {
+      if (loadedFrames.has(currentFrame + i) || currentFrame + i >= totalFrames) {
+        bufferedCount++;
+      } else {
+        break;
+      }
+    }
+
+    // If we don't have enough buffered, pause playback temporarily
+    if (bufferedCount < minBufferSize && currentFrame < totalFrames - minBufferSize) {
+      setIsBuffering(true);
+    } else {
+      setIsBuffering(false);
+    }
+  }, [currentFrame, loadedFrames, isPlaying, totalFrames]);
+
   // Handle play/pause
   useEffect(() => {
-    if (isPlaying) {
+    if (isPlaying && !isBuffering) {
       // Calculate interval based on actual FPS
       const interval = fps > 0 ? 1000 / fps : 100;
 
@@ -115,7 +142,7 @@ const VideoPlayer = ({ videoId, masks, onPointClick, onBoxDraw, onFrameChange })
         clearInterval(intervalRef.current);
       }
     };
-  }, [isPlaying, totalFrames, fps]);
+  }, [isPlaying, isBuffering, totalFrames, fps]);
 
   const handlePlayPause = () => {
     setIsPlaying(!isPlaying);
@@ -141,12 +168,24 @@ const VideoPlayer = ({ videoId, masks, onPointClick, onBoxDraw, onFrameChange })
       {/* Canvas with current frame */}
       <div className="relative">
         {frameUrl ? (
-          <SegmentationCanvas
-            imageUrl={frameUrl}
-            masks={masks}
-            onPointClick={onPointClick}
-            onBoxDraw={onBoxDraw}
-          />
+          <>
+            <SegmentationCanvas
+              imageUrl={frameUrl}
+              masks={masks}
+              onPointClick={onPointClick}
+              onBoxDraw={onBoxDraw}
+            />
+            {isBuffering && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-40 pointer-events-none">
+                <div className="bg-white dark:bg-gray-800 px-4 py-2 rounded-lg shadow-lg">
+                  <div className="flex items-center space-x-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary-500 border-t-transparent"></div>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">Buffering...</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         ) : (
           <div className="card p-4 flex items-center justify-center h-96 bg-gray-100 dark:bg-gray-700">
             <div className="text-center">

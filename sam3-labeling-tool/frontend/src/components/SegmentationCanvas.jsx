@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { Stage, Layer, Image as KonvaImage, Circle, Rect, Shape, Line } from 'react-konva';
 import useStore from '../store/useStore';
 
-const SegmentationCanvas = ({ imageUrl, masks, onPointClick, onBoxDraw }) => {
+const SegmentationCanvas = ({ imageUrl, masks, onPointClick, onBoxDraw, onBrushStroke }) => {
   console.log('🔵 SegmentationCanvas render - masks:', masks ? masks.length : 'null');
 
   const stageRef = useRef(null);
@@ -11,11 +11,19 @@ const SegmentationCanvas = ({ imageUrl, masks, onPointClick, onBoxDraw }) => {
   const [drawingBox, setDrawingBox] = useState(null);
   const [boxStart, setBoxStart] = useState(null);
 
+  // Brush/Eraser state
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [currentStroke, setCurrentStroke] = useState([]);
+  const [cursorPos, setCursorPos] = useState({ x: 0, y: 0 });
+  const [showCursor, setShowCursor] = useState(false);
+
   const {
     activeTool,
     refinementPoints,
     selectedMaskId,
     setSelectedMaskId,
+    brushSize,
+    addToast,
   } = useStore();
 
   // Generate unique colors for each instance
@@ -132,47 +140,108 @@ const SegmentationCanvas = ({ imageUrl, masks, onPointClick, onBoxDraw }) => {
 
   // Handle box drawing
   const handleMouseDown = (e) => {
-    if (activeTool !== 'box') return;
-
     const stage = e.target.getStage();
     const point = stage.getPointerPosition();
 
-    setBoxStart(point);
-    setDrawingBox({ x: point.x, y: point.y, width: 0, height: 0 });
+    if (activeTool === 'box') {
+      setBoxStart(point);
+      setDrawingBox({ x: point.x, y: point.y, width: 0, height: 0 });
+    } else if (activeTool === 'brush' || activeTool === 'eraser') {
+      // Validate mask selection
+      if (selectedMaskId === null) {
+        addToast('Please select a mask first', 'warning');
+        return;
+      }
+      if (activeTool === 'eraser' && selectedMaskId === 'new') {
+        addToast('Cannot erase from a new mask', 'warning');
+        return;
+      }
+
+      setIsDrawing(true);
+      setCurrentStroke([point.x, point.y]);
+    }
   };
 
   const handleMouseMove = (e) => {
-    if (activeTool !== 'box' || !boxStart) return;
-
     const stage = e.target.getStage();
     const point = stage.getPointerPosition();
 
-    setDrawingBox({
-      x: Math.min(boxStart.x, point.x),
-      y: Math.min(boxStart.y, point.y),
-      width: Math.abs(point.x - boxStart.x),
-      height: Math.abs(point.y - boxStart.y),
-    });
+    // Update cursor position for brush/eraser cursor
+    if (activeTool === 'brush' || activeTool === 'eraser') {
+      setCursorPos(point);
+    }
+
+    if (activeTool === 'box' && boxStart) {
+      setDrawingBox({
+        x: Math.min(boxStart.x, point.x),
+        y: Math.min(boxStart.y, point.y),
+        width: Math.abs(point.x - boxStart.x),
+        height: Math.abs(point.y - boxStart.y),
+      });
+    } else if ((activeTool === 'brush' || activeTool === 'eraser') && isDrawing) {
+      // Add point to current stroke
+      setCurrentStroke((prev) => [...prev, point.x, point.y]);
+    }
   };
 
   const handleMouseUp = (e) => {
-    if (activeTool !== 'box' || !drawingBox) return;
+    if (activeTool === 'box' && drawingBox) {
+      // Convert to image coordinates
+      const scaleX = image.width / dimensions.width;
+      const scaleY = image.height / dimensions.height;
 
-    // Convert to image coordinates
-    const scaleX = image.width / dimensions.width;
-    const scaleY = image.height / dimensions.height;
+      if (onBoxDraw) {
+        onBoxDraw({
+          x1: drawingBox.x * scaleX,
+          y1: drawingBox.y * scaleY,
+          x2: (drawingBox.x + drawingBox.width) * scaleX,
+          y2: (drawingBox.y + drawingBox.height) * scaleY,
+        });
+      }
 
-    if (onBoxDraw) {
-      onBoxDraw({
-        x1: drawingBox.x * scaleX,
-        y1: drawingBox.y * scaleY,
-        x2: (drawingBox.x + drawingBox.width) * scaleX,
-        y2: (drawingBox.y + drawingBox.height) * scaleY,
-      });
+      setDrawingBox(null);
+      setBoxStart(null);
+    } else if ((activeTool === 'brush' || activeTool === 'eraser') && isDrawing) {
+      // Finish stroke
+      if (currentStroke.length > 0 && onBrushStroke) {
+        // Convert to image coordinates
+        const scaleX = image.width / dimensions.width;
+        const scaleY = image.height / dimensions.height;
+
+        const scaledStroke = [];
+        for (let i = 0; i < currentStroke.length; i += 2) {
+          scaledStroke.push([
+            currentStroke[i] * scaleX,
+            currentStroke[i + 1] * scaleY
+          ]);
+        }
+
+        onBrushStroke({
+          maskId: selectedMaskId,
+          operation: activeTool === 'brush' ? 'add' : 'remove',
+          points: scaledStroke,
+          brushSize: brushSize,
+        });
+      }
+
+      setIsDrawing(false);
+      setCurrentStroke([]);
     }
+  };
 
-    setDrawingBox(null);
-    setBoxStart(null);
+  const handleMouseEnter = () => {
+    if (activeTool === 'brush' || activeTool === 'eraser') {
+      setShowCursor(true);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    setShowCursor(false);
+    // Cancel any ongoing drawing
+    if (isDrawing) {
+      setIsDrawing(false);
+      setCurrentStroke([]);
+    }
   };
 
   // Render mask overlay with single transparent color
@@ -298,7 +367,12 @@ const SegmentationCanvas = ({ imageUrl, masks, onPointClick, onBoxDraw }) => {
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
         className="rounded-lg overflow-hidden"
+        style={{
+          cursor: (activeTool === 'brush' || activeTool === 'eraser') ? 'none' : 'default'
+        }}
       >
         <Layer>
           {image && (
@@ -321,7 +395,44 @@ const SegmentationCanvas = ({ imageUrl, masks, onPointClick, onBoxDraw }) => {
               dash={[5, 5]}
             />
           )}
+
+          {/* Current brush/eraser stroke being drawn */}
+          {currentStroke.length > 0 && (
+            <Line
+              points={currentStroke}
+              stroke={activeTool === 'brush' ? '#22c55e' : '#ef4444'}
+              strokeWidth={brushSize / (image?.width / dimensions.width || 1)}
+              tension={0.5}
+              lineCap="round"
+              lineJoin="round"
+              globalCompositeOperation={activeTool === 'brush' ? 'source-over' : 'destination-out'}
+              opacity={0.6}
+            />
+          )}
         </Layer>
+
+        {/* Brush cursor layer (always on top) */}
+        {showCursor && (activeTool === 'brush' || activeTool === 'eraser') && (
+          <Layer listening={false}>
+            <Circle
+              x={cursorPos.x}
+              y={cursorPos.y}
+              radius={brushSize / 2}
+              stroke={activeTool === 'brush' ? '#22c55e' : '#ef4444'}
+              strokeWidth={2}
+              dash={[5, 5]}
+              listening={false}
+            />
+            {/* Inner crosshair */}
+            <Circle
+              x={cursorPos.x}
+              y={cursorPos.y}
+              radius={2}
+              fill={activeTool === 'brush' ? '#22c55e' : '#ef4444'}
+              listening={false}
+            />
+          </Layer>
+        )}
       </Stage>
     </div>
   );

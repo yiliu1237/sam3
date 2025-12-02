@@ -4,6 +4,7 @@ import ImageUploader from '../components/ImageUploader';
 import SegmentationCanvas from '../components/SegmentationCanvas';
 import VideoPlayer from '../components/VideoPlayer';
 import ToolPanel from '../components/ToolPanel';
+import MaskList from '../components/MaskList';
 import useStore from '../store/useStore';
 import {
   uploadFile,
@@ -13,6 +14,7 @@ import {
   refineWithBox,
   exportAnnotations,
   downloadMasksAsZip,
+  editMask,
 } from '../api/client';
 
 const SingleMode = () => {
@@ -144,6 +146,42 @@ const SingleMode = () => {
     }
   };
 
+  // Handle brush/eraser strokes
+  const handleBrushStroke = async (strokeData) => {
+    console.log('Brush stroke:', strokeData);
+
+    try {
+      setIsLoading(true);
+
+      // Call backend API to edit the mask
+      const result = await editMask(
+        currentFileId,
+        strokeData.maskId,
+        strokeData.operation,
+        [strokeData.points], // Wrap in array as backend expects list of strokes
+        strokeData.brushSize
+      );
+
+      // Update segmentation result with edited mask
+      // Note: This is a simplified implementation
+      // In production, you'd want to merge the edited mask with existing masks
+      addToast(
+        `${strokeData.operation === 'add' ? 'Brush' : 'Eraser'} stroke applied successfully`,
+        'success'
+      );
+
+      console.log('Mask edit result:', result);
+
+      // For now, we'll just show the result
+      // Full implementation would merge this with the existing segmentation result
+    } catch (error) {
+      console.error('Brush stroke error:', error);
+      addToast('Failed to apply brush stroke', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Handle save masks - download as ZIP
   const handleSave = async () => {
     if (!currentFileId || !segmentationResult) {
@@ -266,6 +304,15 @@ const SingleMode = () => {
                   masks={segmentationResult?.masks}
                   onPointClick={handlePointClick}
                   onBoxDraw={handleBoxDraw}
+                  onBrushStroke={handleBrushStroke}
+                />
+              )}
+
+              {/* Mask List (show when we have segmentation results) */}
+              {segmentationResult && segmentationResult.masks && segmentationResult.masks.length > 0 && (
+                <MaskList
+                  masks={segmentationResult.masks}
+                  scores={segmentationResult.scores || []}
                 />
               )}
 

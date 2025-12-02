@@ -142,4 +142,17 @@ export const downloadMasksAsZip = async (imageId, masks, scores = [], boxes = []
   return response.data;
 };
 
+// Edit mask with brush or eraser
+export const editMask = async (imageId, maskId, operation, strokes, brushSize) => {
+  const response = await apiClient.post('/api/segment/image/edit-mask', {
+    image_id: imageId,
+    mask_id: maskId,
+    operation, // 'add', 'remove', or 'create'
+    strokes, // Array of stroke paths
+    brush_size: brushSize,
+  });
+
+  return response.data;
+};
+
 export default apiClient;

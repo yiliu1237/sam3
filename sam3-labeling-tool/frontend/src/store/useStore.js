@@ -40,8 +40,19 @@ const useStore = create((set, get) => ({
   setIsLoading: (loading) => set({ isLoading: loading }),
 
   // Refinement tools
-  activeTool: 'cursor', // 'cursor', 'point', 'box'
+  activeTool: 'cursor', // 'cursor', 'point', 'box', 'brush', 'eraser'
   setActiveTool: (tool) => set({ activeTool: tool }),
+
+  // Brush/Eraser settings
+  brushSize: 20,
+  setBrushSize: (size) => set({ brushSize: size }),
+
+  // Brush strokes (for manual editing)
+  brushStrokes: [], // Array of {maskId, operation: 'add'|'remove', points: [...]}
+  addBrushStroke: (stroke) => set((state) => ({
+    brushStrokes: [...state.brushStrokes, stroke]
+  })),
+  clearBrushStrokes: () => set({ brushStrokes: [] }),
 
   refinementPoints: [],
   addRefinementPoint: (point) => set((state) => ({

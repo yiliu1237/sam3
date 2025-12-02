@@ -73,3 +73,11 @@ class ExportRequest(BaseModel):
     image_id: str
     format: str = Field("coco", description="coco, yolo, mask_png, or all")
     include_visualization: bool = True
+
+
+class MaskEditRequest(BaseModel):
+    image_id: str
+    mask_id: int | str  # Index of mask to edit, or 'new' for creating new mask
+    operation: str = Field(..., description="'add' for brush, 'remove' for eraser, 'create' for new mask")
+    strokes: List[List[List[float]]]  # List of stroke paths, each stroke is a list of [x, y] points
+    brush_size: int = Field(20, ge=1, le=200)

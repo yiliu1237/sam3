@@ -1,5 +1,5 @@
 import React from 'react';
-import { MousePointer, CircleDot, Square, Trash2, Download, Save } from 'lucide-react';
+import { MousePointer, CircleDot, Square, Trash2, Download, Save, Paintbrush, Eraser } from 'lucide-react';
 import useStore from '../store/useStore';
 
 const ToolPanel = ({ onClearPoints, onExport, onSave }) => {
@@ -11,13 +11,31 @@ const ToolPanel = ({ onClearPoints, onExport, onSave }) => {
     refinementPoints,
     segmentationResult,
     selectedMaskId,
+    brushSize,
+    setBrushSize,
+    addToast,
   } = useStore();
 
   const tools = [
     { id: 'cursor', icon: MousePointer, label: 'Cursor' },
     { id: 'point', icon: CircleDot, label: 'Point' },
     { id: 'box', icon: Square, label: 'Box' },
+    { id: 'brush', icon: Paintbrush, label: 'Brush' },
+    { id: 'eraser', icon: Eraser, label: 'Eraser' },
   ];
+
+  const handleToolSelect = (toolId) => {
+    // Validate brush/eraser tool selection
+    if ((toolId === 'brush' || toolId === 'eraser') && !segmentationResult) {
+      addToast('Please run segmentation first before using brush/eraser tools', 'warning');
+      return;
+    }
+    if (toolId === 'eraser' && (selectedMaskId === null || selectedMaskId === 'new')) {
+      addToast('Please select a mask to erase from', 'warning');
+      return;
+    }
+    setActiveTool(toolId);
+  };
 
   return (
     <div className="card p-6 space-y-6">
@@ -30,14 +48,19 @@ const ToolPanel = ({ onClearPoints, onExport, onSave }) => {
         <div className="grid grid-cols-3 gap-2">
           {tools.map((tool) => {
             const Icon = tool.icon;
+            const isDisabled = (tool.id === 'brush' || tool.id === 'eraser') && !segmentationResult;
+
             return (
               <button
                 key={tool.id}
-                onClick={() => setActiveTool(tool.id)}
+                onClick={() => handleToolSelect(tool.id)}
+                disabled={isDisabled}
                 className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 transition-all ${
                   activeTool === tool.id
                     ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300'
-                    : 'border-gray-200 dark:border-gray-700 hover:border-primary-300 dark:hover:border-primary-600'
+                    : isDisabled
+                      ? 'border-gray-200 dark:border-gray-700 text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                      : 'border-gray-200 dark:border-gray-700 hover:border-primary-300 dark:hover:border-primary-600'
                 }`}
               >
                 <Icon size={20} />
@@ -63,6 +86,28 @@ const ToolPanel = ({ onClearPoints, onExport, onSave }) => {
           className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-primary-600"
         />
       </div>
+
+      {/* Brush size (only show when brush/eraser is active) */}
+      {(activeTool === 'brush' || activeTool === 'eraser') && (
+        <div>
+          <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
+            Brush Size: {brushSize}px
+          </label>
+          <input
+            type="range"
+            min="5"
+            max="100"
+            step="5"
+            value={brushSize}
+            onChange={(e) => setBrushSize(parseInt(e.target.value))}
+            className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-primary-600"
+          />
+          <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
+            <span>5px</span>
+            <span>100px</span>
+          </div>
+        </div>
+      )}
 
       {/* Actions */}
       <div className="space-y-2">
