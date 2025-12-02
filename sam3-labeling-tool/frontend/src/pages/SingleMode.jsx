@@ -162,21 +162,61 @@ const SingleMode = () => {
         strokeData.brushSize
       );
 
-      // Update segmentation result with edited mask
-      // Note: This is a simplified implementation
-      // In production, you'd want to merge the edited mask with existing masks
-      addToast(
-        `${strokeData.operation === 'add' ? 'Brush' : 'Eraser'} stroke applied successfully`,
-        'success'
-      );
-
       console.log('Mask edit result:', result);
 
-      // For now, we'll just show the result
-      // Full implementation would merge this with the existing segmentation result
+      // Merge the edited mask back into the segmentation result
+      if (result && result.masks && result.masks.length > 0) {
+        const strokeMask = result.masks[0]; // The stroke mask from backend
+
+        // Clone current segmentation result
+        const updatedResult = { ...segmentationResult };
+
+        if (strokeData.maskId === 'new') {
+          // Creating a new mask - add it to the list
+          updatedResult.masks = [...updatedResult.masks, strokeMask];
+          updatedResult.boxes = [...updatedResult.boxes, result.boxes[0]];
+          updatedResult.scores = [...updatedResult.scores, result.scores[0]];
+          if (updatedResult.labels) {
+            updatedResult.labels = [...updatedResult.labels, 'manual_mask'];
+          }
+
+          addToast('New mask created successfully', 'success');
+        } else {
+          // Editing existing mask
+          const maskIndex = strokeData.maskId;
+
+          if (strokeData.operation === 'add') {
+            // Merge stroke with existing mask (OR operation)
+            const existingMask = updatedResult.masks[maskIndex];
+            const mergedMask = existingMask.map((row, y) =>
+              row.map((pixel, x) =>
+                pixel || (strokeMask[y]?.[x] || 0)
+              )
+            );
+            updatedResult.masks[maskIndex] = mergedMask;
+            addToast('Pixels added to mask', 'success');
+
+          } else if (strokeData.operation === 'remove') {
+            // Remove stroke from existing mask (AND NOT operation)
+            const existingMask = updatedResult.masks[maskIndex];
+            const mergedMask = existingMask.map((row, y) =>
+              row.map((pixel, x) =>
+                pixel && !(strokeMask[y]?.[x] || 0) ? 1 : 0
+              )
+            );
+            updatedResult.masks[maskIndex] = mergedMask;
+            addToast('Pixels removed from mask', 'success');
+          }
+        }
+
+        // Update the segmentation result state
+        setSegmentationResult(updatedResult);
+        console.log('Updated segmentation result:', updatedResult);
+      }
+
     } catch (error) {
       console.error('Brush stroke error:', error);
-      addToast('Failed to apply brush stroke', 'error');
+      addToast(`Failed to apply brush stroke: ${error.message}`, 'error');
     } finally {
       setIsLoading(false);
     }
