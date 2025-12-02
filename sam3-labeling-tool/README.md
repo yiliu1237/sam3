@@ -1,6 +1,6 @@
 # SAM 3 Labeling Tool
 
-A modern, beautiful web-based labeling tool powered by SAM 3 (Segment Anything Model 3) for automated image and video segmentation with text prompts and interactive refinement.
+A web-based labeling tool powered by SAM 3 (Segment Anything Model 3) for automated image and video segmentation with text prompts and interactive refinement.
 
 ![SAM 3 Labeling Tool](https://img.shields.io/badge/SAM-3-blue)
 ![React](https://img.shields.io/badge/React-18-61dafb)
@@ -15,16 +15,18 @@ A modern, beautiful web-based labeling tool powered by SAM 3 (Segment Anything M
 
 ### Powered by SAM 3
 
-- Text-based prompting (e.g., "crack", "person", "car")
+- Text-based prompting (e.g., "plant", "person", "car")
 - Open-vocabulary segmentation (270K+ concepts)
 - High-quality instance segmentation
 - Video object tracking
 
-### Interactive Refinement
+### Interactive Mask Refinement
 
-- **Point Tool**: Add positive/negative points to refine masks
-- **Box Tool**: Draw bounding boxes for precise selection
-- **Real-time Updates**: See segmentation changes instantly
+- **Instance-Aware Editing**: Select and modify individual mask instances
+- **Brush Tool**: Paint to add pixels to selected masks with adjustable brush size
+- **Eraser Tool**: Remove unwanted pixels from masks with precision control
+- **Undo/Redo System**: Revert changes with full history tracking (50 states)
+- **Mask Management**: Delete, create, and organize multiple mask instances
 
 ### Batch Processing
 
@@ -114,7 +116,7 @@ npm install
 
 SAM 3 requires model checkpoints. Choose one of these options:
 
-#### Option A: HuggingFace (Recommended)
+#### Option A: HuggingFace 
 
 ```bash
 # Install huggingface-cli if not already installed
@@ -170,11 +172,17 @@ Frontend will be available at: `http://localhost:3000`
 1. Navigate to **Single Mode** tab
 2. **Upload** an image or video file
 3. Enter a **text prompt** (e.g., "crack", "person", "car")
-4. Click **Segment** to run SAM 3
-5. **Refine** results using:
-   - **Point Tool**: Click to add positive (green) or negative (red) points
-   - **Box Tool**: Draw bounding boxes
-6. **Export** results in COCO format
+4. Click **Segment** to run SAM 3 inference
+5. **Review** detected mask instances in the mask list panel
+6. **Refine** individual masks using interactive tools:
+   - **Select** a mask instance from the list
+   - **Brush Tool**: Paint to add missing pixels to the selected mask
+   - **Eraser Tool**: Remove incorrectly segmented pixels from the mask
+   - **Adjust** brush size (5-100px) for fine or coarse editing
+   - **Undo/Redo**: Use keyboard shortcuts (Ctrl+Z / Ctrl+Shift+Z) to revert changes
+   - **Delete**: Remove entire mask instances if needed
+7. **Create** new mask instances manually using the brush tool
+8. **Download** results as a ZIP file containing masks and metadata
 
 ### Batch Mode
 
@@ -190,15 +198,48 @@ Frontend will be available at: `http://localhost:3000`
 7. Monitor progress in real-time
 8. **Download** results when complete
 
+## Mask Refinement Workflow
+
+The tool provides instance-aware mask editing capabilities for precise segmentation refinement:
+
+### Initial Segmentation
+
+Text-based prompts generate multiple mask instances automatically. SAM 3 detects all objects matching the prompt across the image, with each detection stored as a separate instance.
+
+### Instance Selection
+
+The mask list panel displays all detected instances with their confidence scores. Users select a specific mask to edit by clicking its entry in the list. The selected mask is highlighted on the canvas with visual emphasis.
+
+### Brush Tool Operations
+
+The brush tool adds pixels to the selected mask instance. Users paint directly on the canvas to extend mask boundaries or fill missed regions. Brush size is adjustable from 5 to 100 pixels for different levels of precision. The tool operates only on the selected mask, leaving other instances unmodified.
+
+### Eraser Tool Operations
+
+The eraser tool removes pixels from the selected mask instance. Users paint over incorrectly segmented regions to subtract them from the mask. If all pixels are removed, the mask instance is automatically deleted from the list. The eraser requires an active mask selection and cannot modify other instances.
+
+### History Management
+
+All mask modifications are tracked in a history buffer with a capacity of 50 states. Users can undo operations with Ctrl+Z or Cmd+Z, and redo with Ctrl+Shift+Z or Cmd+Shift+Y. The history system preserves the complete segmentation state including all mask instances.
+
+### Manual Mask Creation
+
+Users can create new mask instances from scratch by selecting "Create New Mask" and using the brush tool. The new mask is added to the instance list and can be refined with the same tools.
+
+### Export Format
+
+Downloaded results include binary mask images for each instance, bounding box coordinates, confidence scores, and metadata in JSON format. All files are packaged in a ZIP archive for convenient download.
+
 ## API Endpoints
 
 ### Segmentation
 
-- `POST /api/segment/upload` - Upload file
-- `POST /api/segment/image/text` - Segment with text prompt
-- `POST /api/segment/image/refine` - Refine with points/boxes
-- `POST /api/segment/video/text` - Segment video
-- `DELETE /api/segment/clear/{file_id}` - Clear cached state
+- `POST /api/segment/upload` - Upload image or video file
+- `POST /api/segment/image/text` - Segment image using text prompt
+- `POST /api/segment/image/edit-mask` - Edit mask using brush/eraser strokes
+- `POST /api/segment/video/text` - Segment video using text prompt
+- `GET /api/segment/video/frame/{file_id}` - Retrieve video frame
+- `DELETE /api/segment/clear/{file_id}` - Clear cached inference state
 
 ### Batch Processing
 
@@ -260,10 +301,12 @@ VITE_API_URL=http://localhost:8000
 ### Frontend Components
 
 - **Header**: Navigation and theme toggle
-- **ImageUploader**: Drag & drop file upload
-- **SegmentationCanvas**: Interactive canvas with Konva.js
-- **ToolPanel**: Tool selection and controls
-- **ToastContainer**: Notification system
+- **ImageUploader**: Drag and drop file upload with preview
+- **SegmentationCanvas**: Interactive canvas with Konva.js for mask visualization and editing
+- **ToolPanel**: Tool selection, brush size controls, and undo/redo interface
+- **MaskList**: Instance list with selection, deletion, and creation controls
+- **VideoPlayer**: Video frame navigation and mask overlay
+- **ToastContainer**: Notification system for user feedback
 
 ### Frontend Pages
 
@@ -361,14 +404,6 @@ Run with:
 docker-compose up
 ```
 
-## Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
 
 ## License
 
