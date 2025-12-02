@@ -1,25 +1,33 @@
 import React from 'react';
-import { MousePointer, CircleDot, Square, Trash2, Download, Save, Paintbrush, Eraser } from 'lucide-react';
+import { MousePointer, CircleDot, Square, Trash2, Download, Save, Paintbrush, Eraser, Undo2, Redo2 } from 'lucide-react';
 import useStore from '../store/useStore';
 
-const ToolPanel = ({ onClearPoints, onExport, onSave }) => {
+const ToolPanel = ({ onSave }) => {  // onClearPoints removed
   const {
     activeTool,
     setActiveTool,
     confidenceThreshold,
     setConfidenceThreshold,
-    refinementPoints,
+    // refinementPoints,  // Disabled - Point tool removed
     segmentationResult,
     selectedMaskId,
     brushSize,
     setBrushSize,
     addToast,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
   } = useStore();
 
   const tools = [
     { id: 'cursor', icon: MousePointer, label: 'Cursor' },
-    { id: 'point', icon: CircleDot, label: 'Point' },
-    { id: 'box', icon: Square, label: 'Box' },
+    // NOTE: Point and Box tools are disabled because SAM3's architecture doesn't support
+    // true instance-aware refinement with these prompts. Using add_geometric_prompt()
+    // reruns the entire detection pipeline (unpredictable), and using predict_inst()
+    // creates new masks instead of refining existing ones. Use Brush/Eraser for refinement.
+    // { id: 'point', icon: CircleDot, label: 'Point' },
+    // { id: 'box', icon: Square, label: 'Box' },
     { id: 'brush', icon: Paintbrush, label: 'Brush' },
     { id: 'eraser', icon: Eraser, label: 'Eraser' },
   ];
@@ -109,35 +117,42 @@ const ToolPanel = ({ onClearPoints, onExport, onSave }) => {
         </div>
       )}
 
+      {/* Undo/Redo */}
+      {segmentationResult && (
+        <div className="flex gap-2">
+          <button
+            onClick={undo}
+            disabled={!canUndo()}
+            className="flex-1 flex items-center justify-center space-x-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Undo (Ctrl+Z)"
+          >
+            <Undo2 size={18} />
+            <span>Undo</span>
+          </button>
+          <button
+            onClick={redo}
+            disabled={!canRedo()}
+            className="flex-1 flex items-center justify-center space-x-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Redo (Ctrl+Shift+Z)"
+          >
+            <Redo2 size={18} />
+            <span>Redo</span>
+          </button>
+        </div>
+      )}
+
       {/* Actions */}
       <div className="space-y-2">
-        {refinementPoints.length > 0 && (
-          <button
-            onClick={onClearPoints}
-            className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-red-100 hover:bg-red-200 dark:bg-red-900/20 dark:hover:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg transition-colors"
-          >
-            <Trash2 size={18} />
-            <span>Clear Points ({refinementPoints.length})</span>
-          </button>
-        )}
+        {/* Clear Points button removed - Point tool disabled */}
 
         {segmentationResult && (
-          <>
-            <button
-              onClick={onSave}
-              className="w-full flex items-center justify-center space-x-2 btn-primary"
-            >
-              <Save size={18} />
-              <span>Save Masks</span>
-            </button>
-            <button
-              onClick={onExport}
-              className="w-full flex items-center justify-center space-x-2 btn-secondary"
-            >
-              <Download size={18} />
-              <span>Export Results</span>
-            </button>
-          </>
+          <button
+            onClick={onSave}
+            className="w-full flex items-center justify-center space-x-2 btn-primary"
+          >
+            <Download size={18} />
+            <span>Download Results</span>
+          </button>
         )}
       </div>
 

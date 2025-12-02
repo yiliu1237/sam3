@@ -141,6 +141,9 @@ class SAM3Service:
         """
         Refine segmentation with point prompts
 
+        NOTE: SAM3 Image Processor doesn't support point prompts directly.
+        We convert points to small bounding boxes as a workaround.
+
         Args:
             image_id: Image identifier
             points: List of (x, y) coordinates
@@ -155,15 +158,31 @@ class SAM3Service:
 
         state = self.image_states[image_id]
 
-        # Add point prompts
-        output = self.image_processor.add_point_prompt(
-            state=state,
-            points=np.array(points),
-            labels=np.array(labels)
-        )
+        # SAM3 Image Processor only supports geometric (box) prompts, not point prompts
+        # Convert each point to a small box around it (±5% of image size)
+        img_h = state["original_height"]
+        img_w = state["original_width"]
 
-        # Squeeze masks to remove extra dimensions (N, 1, H, W) -> list of (H, W)
-        masks_tensor = output["masks"]
+        box_size_w = 0.05  # 5% of width
+        box_size_h = 0.05  # 5% of height
+
+        for point, label in zip(points, labels):
+            # Normalize point coordinates to [0, 1]
+            norm_x = point[0] / img_w
+            norm_y = point[1] / img_h
+
+            # Create box: [center_x, center_y, width, height]
+            box = [norm_x, norm_y, box_size_w, box_size_h]
+
+            # Add geometric prompt (box)
+            state = self.image_processor.add_geometric_prompt(
+                box=box,
+                label=bool(label),  # True for positive, False for negative
+                state=state
+            )
+
+        # Extract results from state
+        masks_tensor = state["masks"]
         if masks_tensor.shape[0] > 0:
             masks = [masks_tensor[i].squeeze() for i in range(masks_tensor.shape[0])]
         else:
@@ -171,8 +190,8 @@ class SAM3Service:
 
         return {
             "masks": masks,
-            "boxes": output["boxes"],
-            "scores": output["scores"]
+            "boxes": state["boxes"].cpu().numpy().tolist(),
+            "scores": state["scores"].cpu().numpy().tolist()
         }
 
     def refine_with_box(

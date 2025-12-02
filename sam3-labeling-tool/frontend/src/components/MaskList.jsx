@@ -2,7 +2,7 @@ import React from 'react';
 import { Trash2, Eye, EyeOff } from 'lucide-react';
 import useStore from '../store/useStore';
 
-const MaskList = ({ masks = [], scores = [] }) => {
+const MaskList = ({ masks = [], scores = [], onDeleteMask }) => {
   const {
     selectedMaskId,
     setSelectedMaskId,
@@ -25,8 +25,25 @@ const MaskList = ({ masks = [], scores = [] }) => {
 
   const handleDeleteMask = (maskId, e) => {
     e.stopPropagation();
-    // This will be implemented later to actually remove the mask
-    addToast(`Delete mask #${maskId} (not yet implemented)`, 'info');
+
+    if (!onDeleteMask) {
+      addToast('Delete mask function not available', 'error');
+      return;
+    }
+
+    // Confirm deletion
+    if (window.confirm(`Are you sure you want to delete Mask #${maskId + 1}?`)) {
+      onDeleteMask(maskId);
+      addToast(`Mask #${maskId + 1} deleted`, 'success');
+
+      // Clear selection if we deleted the selected mask
+      if (selectedMaskId === maskId) {
+        setSelectedMaskId(null);
+      } else if (selectedMaskId > maskId) {
+        // Adjust selection index if we deleted a mask before the selected one
+        setSelectedMaskId(selectedMaskId - 1);
+      }
+    }
   };
 
   // Generate color for mask instance (same logic as SegmentationCanvas)
@@ -164,13 +181,13 @@ const MaskList = ({ masks = [], scores = [] }) => {
           <p className="text-xs text-blue-700 dark:text-blue-300">
             {activeTool === 'brush'
               ? selectedMaskId === 'new'
-                ? '🎨 Paint to create a new mask'
+                ? 'Paint to create a new mask'
                 : selectedMaskId !== null
-                  ? `🎨 Paint to add to Mask #${selectedMaskId + 1}`
-                  : '👆 Select a mask or create new'
+                  ? `Paint to add to Mask #${selectedMaskId + 1}`
+                  : 'Select a mask or create new'
               : selectedMaskId !== null && selectedMaskId !== 'new'
-                ? `🧹 Paint to erase from Mask #${selectedMaskId + 1}`
-                : '👆 Select a mask to erase from'
+                ? `Paint to erase from Mask #${selectedMaskId + 1}`
+                : 'Select a mask to erase from'
             }
           </p>
         </div>

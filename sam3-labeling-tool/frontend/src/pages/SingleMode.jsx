@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sparkles, Loader2 } from 'lucide-react';
 import ImageUploader from '../components/ImageUploader';
 import SegmentationCanvas from '../components/SegmentationCanvas';
@@ -10,9 +10,8 @@ import {
   uploadFile,
   segmentImageWithText,
   segmentVideoWithText,
-  refineWithPoints,
-  refineWithBox,
-  exportAnnotations,
+  // refineWithPoints,  // Disabled - Point tool removed
+  // refineWithBox,     // Disabled - Box tool removed
   downloadMasksAsZip,
   editMask,
 } from '../api/client';
@@ -32,10 +31,16 @@ const SingleMode = () => {
     isLoading,
     setIsLoading,
     confidenceThreshold,
-    refinementPoints,
-    addRefinementPoint,
-    clearRefinementPoints,
+    // refinementPoints,      // Disabled - Point tool removed
+    // addRefinementPoint,    // Disabled - Point tool removed
+    // clearRefinementPoints, // Disabled - Point tool removed
     addToast,
+    pushToHistory,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    clearHistory,
   } = useStore();
 
   // Handle file selection
@@ -101,6 +106,9 @@ const SingleMode = () => {
       }
 
       setSegmentationResult(result);
+      // Initialize history with first segmentation result
+      clearHistory();
+      pushToHistory(result);
     } catch (error) {
       console.error('Segmentation error:', error);
       addToast('Segmentation failed', 'error');
@@ -109,42 +117,48 @@ const SingleMode = () => {
     }
   };
 
-  // Handle point refinement
-  const handlePointClick = async (point) => {
-    addRefinementPoint(point);
+  // NOTE: Point and Box refinement handlers are disabled.
+  // SAM3's architecture doesn't support true instance-aware refinement:
+  // - add_geometric_prompt() reruns entire detection (unpredictable)
+  // - predict_inst() creates new masks (not refinement)
+  // Use Brush/Eraser tools for precise instance-aware mask editing.
 
-    try {
-      setIsLoading(true);
+  // // Handle point refinement
+  // const handlePointClick = async (point) => {
+  //   addRefinementPoint(point);
 
-      const points = [...refinementPoints, point];
-      const result = await refineWithPoints(currentFileId, points);
+  //   try {
+  //     setIsLoading(true);
 
-      setSegmentationResult(result);
-      addToast('Segmentation refined', 'success');
-    } catch (error) {
-      console.error('Refinement error:', error);
-      addToast('Refinement failed', 'error');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  //     const points = [...refinementPoints, point];
+  //     const result = await refineWithPoints(currentFileId, points);
 
-  // Handle box refinement
-  const handleBoxDraw = async (box) => {
-    try {
-      setIsLoading(true);
+  //     setSegmentationResult(result);
+  //     addToast('Segmentation refined', 'success');
+  //   } catch (error) {
+  //     console.error('Refinement error:', error);
+  //     addToast('Refinement failed', 'error');
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
 
-      const result = await refineWithBox(currentFileId, box);
+  // // Handle box refinement
+  // const handleBoxDraw = async (box) => {
+  //   try {
+  //     setIsLoading(true);
 
-      setSegmentationResult(result);
-      addToast('Segmentation refined with box', 'success');
-    } catch (error) {
-      console.error('Box refinement error:', error);
-      addToast('Box refinement failed', 'error');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  //     const result = await refineWithBox(currentFileId, box);
+
+  //     setSegmentationResult(result);
+  //     addToast('Segmentation refined with box', 'success');
+  //   } catch (error) {
+  //     console.error('Box refinement error:', error);
+  //     addToast('Box refinement failed', 'error');
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
 
   // Handle brush/eraser strokes
   const handleBrushStroke = async (strokeData) => {
@@ -204,13 +218,32 @@ const SingleMode = () => {
                 pixel && !(strokeMask[y]?.[x] || 0) ? 1 : 0
               )
             );
-            updatedResult.masks[maskIndex] = mergedMask;
-            addToast('Pixels removed from mask', 'success');
+
+            // Check if mask is completely empty (no pixels left)
+            const hasPixels = mergedMask.some(row => row.some(pixel => pixel > 0));
+
+            if (!hasPixels) {
+              // Mask is completely erased - remove it from the list
+              updatedResult.masks.splice(maskIndex, 1);
+              updatedResult.boxes.splice(maskIndex, 1);
+              updatedResult.scores.splice(maskIndex, 1);
+              if (updatedResult.labels) {
+                updatedResult.labels.splice(maskIndex, 1);
+              }
+              addToast('Mask completely erased and removed', 'success');
+
+              // Clear the selected mask since it no longer exists
+              const { setSelectedMaskId } = useStore.getState();
+              setSelectedMaskId(null);
+            } else {
+              updatedResult.masks[maskIndex] = mergedMask;
+              addToast('Pixels removed from mask', 'success');
+            }
           }
         }
 
-        // Update the segmentation result state
-        setSegmentationResult(updatedResult);
+        // Update the segmentation result state and push to history
+        pushToHistory(updatedResult);
         console.log('Updated segmentation result:', updatedResult);
       }
 
@@ -261,15 +294,38 @@ const SingleMode = () => {
     }
   };
 
-  // Handle export
-  const handleExport = async () => {
-    try {
-      await exportAnnotations(currentFileId, 'coco', true);
-      addToast('Export initiated', 'info');
-    } catch (error) {
-      console.error('Export error:', error);
-      addToast('Export failed', 'error');
+
+  // Handle mask deletion
+  const handleDeleteMask = (maskIndex) => {
+    if (!segmentationResult || !segmentationResult.masks) {
+      addToast('No masks to delete', 'error');
+      return;
     }
+
+    console.log('🗑️ Deleting mask at index:', maskIndex);
+
+    // Clone the segmentation result
+    const updatedResult = { ...segmentationResult };
+
+    // Remove the mask and its associated data
+    updatedResult.masks = [...updatedResult.masks];
+    updatedResult.masks.splice(maskIndex, 1);
+
+    updatedResult.boxes = [...updatedResult.boxes];
+    updatedResult.boxes.splice(maskIndex, 1);
+
+    updatedResult.scores = [...updatedResult.scores];
+    updatedResult.scores.splice(maskIndex, 1);
+
+    if (updatedResult.labels) {
+      updatedResult.labels = [...updatedResult.labels];
+      updatedResult.labels.splice(maskIndex, 1);
+    }
+
+    // Push to history and update state
+    pushToHistory(updatedResult);
+
+    console.log('Mask deleted. Remaining masks:', updatedResult.masks.length);
   };
 
   // Handle reset
@@ -277,8 +333,48 @@ const SingleMode = () => {
     clearCurrentFile();
     setImagePreview(null);
     setTextPrompt('');
-    clearRefinementPoints();
+    // clearRefinementPoints();  // Disabled - Point tool removed
+    clearHistory();
   };
+
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Check if we're in an input field
+      const isInputFocused = ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName);
+      if (isInputFocused) return;
+
+      // Ctrl+Z or Cmd+Z for undo
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        if (canUndo()) {
+          undo();
+          addToast('Undo', 'info');
+        }
+      }
+
+      // Ctrl+Shift+Z or Cmd+Shift+Z for redo
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && e.shiftKey) {
+        e.preventDefault();
+        if (canRedo()) {
+          redo();
+          addToast('Redo', 'info');
+        }
+      }
+
+      // Alternative: Ctrl+Y or Cmd+Y for redo
+      if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+        e.preventDefault();
+        if (canRedo()) {
+          redo();
+          addToast('Redo', 'info');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo, canUndo, canRedo, addToast]);
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -335,15 +431,15 @@ const SingleMode = () => {
                 <VideoPlayer
                   videoId={currentFileId}
                   masks={segmentationResult?.masks}
-                  onPointClick={handlePointClick}
-                  onBoxDraw={handleBoxDraw}
+                  // onPointClick={handlePointClick}  // Disabled - Point tool removed
+                  // onBoxDraw={handleBoxDraw}         // Disabled - Box tool removed
                 />
               ) : (
                 <SegmentationCanvas
                   imageUrl={imagePreview}
                   masks={segmentationResult?.masks}
-                  onPointClick={handlePointClick}
-                  onBoxDraw={handleBoxDraw}
+                  // onPointClick={handlePointClick}  // Disabled - Point tool removed
+                  // onBoxDraw={handleBoxDraw}         // Disabled - Box tool removed
                   onBrushStroke={handleBrushStroke}
                 />
               )}
@@ -353,6 +449,7 @@ const SingleMode = () => {
                 <MaskList
                   masks={segmentationResult.masks}
                   scores={segmentationResult.scores || []}
+                  onDeleteMask={handleDeleteMask}
                 />
               )}
 
@@ -370,9 +467,8 @@ const SingleMode = () => {
         {/* Tool panel */}
         <div>
           <ToolPanel
-            onClearPoints={clearRefinementPoints}
+            // onClearPoints={clearRefinementPoints}  // Disabled - Point tool removed
             onSave={handleSave}
-            onExport={handleExport}
           />
         </div>
       </div>

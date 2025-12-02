@@ -35,6 +35,67 @@ const useStore = create((set, get) => ({
   segmentationResult: null,
   setSegmentationResult: (result) => set({ segmentationResult: result }),
 
+  // History for undo/redo
+  segmentationHistory: [],
+  historyIndex: -1,
+
+  // Push new state to history (called after each edit)
+  pushToHistory: (result) => set((state) => {
+    // Remove any future history if we're not at the end
+    const newHistory = state.segmentationHistory.slice(0, state.historyIndex + 1);
+    // Add new state
+    newHistory.push(JSON.parse(JSON.stringify(result))); // Deep clone
+    // Limit history to last 50 states
+    if (newHistory.length > 50) {
+      newHistory.shift();
+    }
+    return {
+      segmentationHistory: newHistory,
+      historyIndex: newHistory.length - 1,
+      segmentationResult: result,
+    };
+  }),
+
+  // Undo
+  undo: () => set((state) => {
+    if (state.historyIndex > 0) {
+      const newIndex = state.historyIndex - 1;
+      return {
+        historyIndex: newIndex,
+        segmentationResult: state.segmentationHistory[newIndex],
+      };
+    }
+    return state;
+  }),
+
+  // Redo
+  redo: () => set((state) => {
+    if (state.historyIndex < state.segmentationHistory.length - 1) {
+      const newIndex = state.historyIndex + 1;
+      return {
+        historyIndex: newIndex,
+        segmentationResult: state.segmentationHistory[newIndex],
+      };
+    }
+    return state;
+  }),
+
+  // Check if can undo/redo
+  canUndo: () => {
+    const state = get();
+    return state.historyIndex > 0;
+  },
+  canRedo: () => {
+    const state = get();
+    return state.historyIndex < state.segmentationHistory.length - 1;
+  },
+
+  // Clear history (when loading new file)
+  clearHistory: () => set({
+    segmentationHistory: [],
+    historyIndex: -1,
+  }),
+
   // Loading state
   isLoading: false,
   setIsLoading: (loading) => set({ isLoading: loading }),
